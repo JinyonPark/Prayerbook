@@ -70,7 +70,7 @@ copy .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL. 클라이언트에 포함됩니다. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key. 클라이언트에 포함됩니다. |
 | `SUPABASE_SERVICE_ROLE_KEY` | 서버 전용. 회원 탈퇴 Route Handler에서만 사용합니다. 브라우저에 노출하지 않습니다. |
-| `NEXT_PUBLIC_SITE_URL` | 로컬은 `http://localhost:3000`, 배포 시 `https://your-domain.vercel.app` |
+| `NEXT_PUBLIC_SITE_URL` | 로컬은 `http://localhost:3000`, 배포는 `https://prayer-book-chi.vercel.app` |
 
 환경 변수가 없으면 로그인 화면에 설정 안내를 표시합니다. 빌드 시 실제 비밀값을 요구하도록 하드코딩하지 않았습니다.
 
@@ -133,18 +133,39 @@ Authentication → URL Configuration에 다음을 등록합니다.
 로컬:
 
 - Site URL: `http://localhost:3000`
-- Redirect URLs: `http://localhost:3000/auth/callback`, `http://localhost:3000/auth/update-password`
-
-Vercel:
-
-- Site URL: `https://your-domain.vercel.app`
 - Redirect URLs:
-  - `https://your-domain.vercel.app/auth/callback`
-  - `https://your-domain.vercel.app/auth/update-password`
-  - `https://your-domain.vercel.app/login`
+  - `http://localhost:3000/auth/callback`
+  - `http://localhost:3000/auth/callback/**`
+  - `http://localhost:3000/reset-password`
+  - `http://localhost:3000/login`
 
-비밀번호 재설정 메일의 redirect는 `NEXT_PUBLIC_SITE_URL/auth/callback?next=/auth/update-password`입니다.
-메일 링크를 열면 새 비밀번호를 입력하는 화면으로 이동합니다.
+Vercel production:
+
+- Site URL: `https://prayer-book-chi.vercel.app`
+- Redirect URLs:
+  - `https://prayer-book-chi.vercel.app/auth/callback`
+  - `https://prayer-book-chi.vercel.app/auth/callback/**`
+  - `https://prayer-book-chi.vercel.app/reset-password`
+  - `https://prayer-book-chi.vercel.app/login`
+
+비밀번호 재설정 메일의 redirect는 `{SITE_URL}/auth/callback?next=/reset-password`입니다.
+회원가입 확인 메일은 `{SITE_URL}/auth/callback?next=/login`입니다.
+
+### 대시보드에서 직접 확인할 항목
+
+- Email provider 활성화
+- Confirm signup / Reset password 이메일 템플릿
+- Custom SMTP: 운영에서는 기본 테스트 메일 제한(시간당 약 2통)에만 의존하지 마세요. SMTP가 없으면 메일이 스팸함으로 가거나 발송이 거절될 수 있습니다.
+- 발신자 이름과 발신 이메일(SMTP 사용 시)
+
+### Vercel 환경 변수
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (서버 전용)
+- `NEXT_PUBLIC_SITE_URL=https://prayer-book-chi.vercel.app`
+
+production 메일 링크에 `localhost`가 들어가면 `NEXT_PUBLIC_SITE_URL`이 잘못된 것입니다.
 
 ## 로컬 테스트
 
@@ -207,14 +228,46 @@ npm run generate:icons
 
 ## Total N독 계산 방식
 
+배우자 기도를 선택하기 전에는 기존처럼 기본 기도 1~27번으로 계산합니다.
+
+선택한 뒤에는 진행률에 넣는 항목만 사용합니다.
+
 ```
-totalCompleted = min(itemCount[1] ... itemCount[27])
+eligiblePrayerItems = counts_toward_total이 true이고 사용자 설정으로 제외되지 않은 항목
+totalCompleted = eligiblePrayerItems completion_count의 최솟값
 currentRound = totalCompleted + 1
-currentCompletedCount = itemCount[i] >= currentRound 인 기본 기도 개수
-progressPercent = currentCompletedCount / 27 * 100
+currentCompletedCount = completion_count >= currentRound 인 eligible 항목 수
+progressPercent = currentCompletedCount / eligibleCount * 100
 ```
 
-추가 기도는 Total 계산에서 제외합니다. Total 컬럼을 따로 증가시키지 않습니다.
+남편을 위한 기도를 선택하면 10번 아내를 위한 기도는 분모에서 빠집니다. 아내를 위한 기도를 선택하면 9번이 빠집니다. 제외된 항목의 완료 횟수는 삭제되지 않습니다.
+
+## 모바일 상태 표시줄 수동 확인
+
+DOM 테스트만으로 시스템 아이콘이 보인다고 단정하지 않습니다. 아래 환경에서 시간과 배터리 아이콘을 직접 확인하세요.
+
+- [ ] Android Chrome 일반 브라우저 / 주간
+- [ ] Android Chrome 일반 브라우저 / 야간
+- [ ] Android 설치형 PWA / 주간
+- [ ] Android 설치형 PWA / 야간
+- [ ] 카카오톡 인앱 브라우저 / 주간
+- [ ] 카카오톡 인앱 브라우저 / 야간
+- [ ] 앱 완전 종료 후 재실행
+- [ ] 세로·가로 전환
+
+확인 항목: 시간, 배터리, Wi-Fi, safe-area 배경, 테마 변경 반영, 헤더와 상태 표시줄 색 단절.
+
+## 카카오톡 설치 안내창 수동 확인
+
+Playwright는 visual viewport를 흉내 낼 수 있지만 카카오톡 앱 UI는 자동 테스트할 수 없습니다.
+
+- [ ] 안내창 상단이 URL 표시 영역 아래에 보임
+- [ ] 닫기 버튼이 보임
+- [ ] 하단 확인/닫기 버튼이 도구 모음에 가려지지 않음
+- [ ] 긴 안내는 내부 스크롤
+- [ ] 닫은 뒤 원래 스크롤 위치 유지
+- [ ] 세로·가로 전환 후 안내창 재배치
+
 
 ## 완료 횟수 수정 및 초기화
 

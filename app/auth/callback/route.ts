@@ -1,18 +1,55 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 import { safeNextPath } from "@/lib/auth/redirect";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { hasPublicEnv } from "@/lib/validation/env";
 
-export async function GET(request: Request) {
-  const url = new URL(request.url);
+function destinationFor(type: string | null, next: string): string {
+  if (type === "recovery") return "/reset-password";
+  if (type === "signup" || type === "email" || type === "invite") {
+    return next === "/login" ? "/login?confirmed=1" : next;
+  }
+  if (next === "/reset-password") return "/reset-password";
+  if (next === "/login") return "/login?confirmed=1";
+  return next;
+}
+
+export async function GET(request: NextRequest) {
+  const url = request.nextUrl;
+  const origin = url.origin;
   const code = url.searchParams.get("code");
   const tokenHash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type") as EmailOtpType | null;
   const next = safeNextPath(url.searchParams.get("next"));
+  const destination = destinationFor(type, next);
 
-  const supabase = await createServerSupabaseClient();
+  if (!hasPublicEnv()) {
+    return NextResponse.redirect(new URL("/login?error=config", origin));
+  }
+
+  if (!code && !(tokenHash && type)) {
+    return NextResponse.redirect(new URL("/auth/error?reason=missing", origin));
+  }
+
+  const redirectResponse = NextResponse.redirect(new URL(destination, origin));
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet: { name: string; value: string; options?: object }[]) {
+          for (const cookie of cookiesToSet) {
+            redirectResponse.cookies.set(cookie.name, cookie.value, cookie.options);
+          }
+        },
+      },
+    },
+  );
+
   let failed = false;
-
   if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
     failed = Boolean(error);
@@ -22,8 +59,8 @@ export async function GET(request: Request) {
   }
 
   if (failed) {
-    return NextResponse.redirect(new URL("/login?error=reset", url.origin));
+    return NextResponse.redirect(new URL("/auth/error?reason=expired", origin));
   }
 
-  return NextResponse.redirect(new URL(next, url.origin));
+  return redirectResponse;
 }

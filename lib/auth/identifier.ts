@@ -24,6 +24,12 @@ export function parseAuthIdentifier(raw: string): AuthIdentifier | { error: stri
   return { kind: "loginId", loginId };
 }
 
+export const SYNTHETIC_AUTH_DOMAIN = "id.prayerbook.app";
+
 export function syntheticAuthEmail(loginId: string): string {
-  return `u-${loginId}@id.prayerbook.app`;
+  return `u-${loginId}@${SYNTHETIC_AUTH_DOMAIN}`;
+}
+
+export function isSyntheticAuthEmail(email: string): boolean {
+  return email.trim().toLowerCase().endsWith(`@${SYNTHETIC_AUTH_DOMAIN}`);
 }

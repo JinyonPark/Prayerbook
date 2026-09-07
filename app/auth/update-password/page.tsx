@@ -1,5 +1,5 @@
-import { UpdatePasswordForm } from "@/components/auth/UpdatePasswordForm";
+import { redirect } from "next/navigation";
 
-export default function UpdatePasswordPage() {
-  return <UpdatePasswordForm />;
+export default function LegacyUpdatePasswordPage() {
+  redirect("/reset-password");
 }

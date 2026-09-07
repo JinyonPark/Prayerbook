@@ -32,9 +32,9 @@ type EditState = {
 };
 
 export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
-  const { summary, setSummary, online } = useAppState();
+  const { summary, setSummary, online, spouseSelection } = useAppState();
   const items = useMemo(() => (summary ? mapSummaryItems(summary) : []), [summary]);
-  const current = calculateProgressFromItems(items);
+  const current = calculateProgressFromItems(items, spouseSelection);
   const [edit, setEdit] = useState<EditState | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
 
   const parsedEdit = edit ? parseCountInput(edit.value) : null;
   const afterEdit = edit && parsedEdit?.ok ? previewSetCount(items, edit.item.id, parsedEdit.value) : items;
-  const afterSummary = calculateProgressFromItems(afterEdit);
+  const afterSummary = calculateProgressFromItems(afterEdit, spouseSelection);
   const totalDecreases = edit && parsedEdit?.ok && afterSummary.totalCompleted < current.totalCompleted;
 
   async function run(task: () => Promise<RpcMutationResult>, successText: string) {
@@ -63,7 +63,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
       const data = await task();
       setSummary(data);
       setResult(
-        `${successText} Total ${data.current_total}독, ${data.current_round}독 진행 중 ${data.current_completed_count}/${MAIN_PRAYER_COUNT}`,
+        `${successText} Total ${data.current_total}독, ${data.current_round}독 진행 중 ${data.current_completed_count}/${current.eligibleCount}`,
       );
       return data;
     } catch (err) {
@@ -83,7 +83,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
         <p>현재 Total {current.totalCompleted}독</p>
         <p>
-          {current.currentRound}독 진행 중 {current.currentCompletedCount}/{MAIN_PRAYER_COUNT}
+          {current.currentRound}독 진행 중 {current.currentCompletedCount}/{current.eligibleCount}
         </p>
         {!online ? <p className="mt-2">인터넷 연결이 필요합니다. 연결 후 기도 완료 기록을 저장할 수 있습니다.</p> : null}
         {result ? <p className="mt-2">{result}</p> : null}
@@ -178,10 +178,10 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
             </div>
             {parsedEdit && !parsedEdit.ok ? <p role="alert">{parsedEdit.message}</p> : null}
             <p>
-              변경 전: Total {current.totalCompleted}독 · {current.currentRound}독 진행 중 {current.currentCompletedCount}/{MAIN_PRAYER_COUNT}
+              변경 전: Total {current.totalCompleted}독 · {current.currentRound}독 진행 중 {current.currentCompletedCount}/{current.eligibleCount}
             </p>
             <p>
-              변경 후 예상: Total {afterSummary.totalCompleted}독 · {afterSummary.currentRound}독 진행 중 {afterSummary.currentCompletedCount}/{MAIN_PRAYER_COUNT}
+              변경 후 예상: Total {afterSummary.totalCompleted}독 · {afterSummary.currentRound}독 진행 중 {afterSummary.currentCompletedCount}/{current.eligibleCount}
             </p>
             {totalDecreases ? (
               <p>
@@ -329,10 +329,10 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
           return (
             <div className="mt-3 space-y-1 text-sm">
               <p>
-                변경 전: Total {current.totalCompleted}독 · {current.currentRound}독 {current.currentCompletedCount}/{MAIN_PRAYER_COUNT}
+                변경 전: Total {current.totalCompleted}독 · {current.currentRound}독 {current.currentCompletedCount}/{current.eligibleCount}
               </p>
               <p>
-                변경 후: Total {after.totalCompleted}독 · {after.currentRound}독 {after.currentCompletedCount}/{MAIN_PRAYER_COUNT}
+                변경 후: Total {after.totalCompleted}독 · {after.currentRound}독 {after.currentCompletedCount}/{current.eligibleCount}
               </p>
             </div>
           );
@@ -382,10 +382,10 @@ function ConfirmPreview({
     <Modal open={open} title={title} onClose={onClose} closeDisabled={pending}>
       <p>{description}</p>
       <p className="mt-3">
-        변경 전: Total {before.totalCompleted}독 · {before.currentRound}독 {before.currentCompletedCount}/{MAIN_PRAYER_COUNT}
+        변경 전: Total {before.totalCompleted}독 · {before.currentRound}독 {before.currentCompletedCount}/{before.eligibleCount}
       </p>
       <p>
-        변경 후: Total {after.totalCompleted}독 · {after.currentRound}독 {after.currentCompletedCount}/{MAIN_PRAYER_COUNT}
+        변경 후: Total {after.totalCompleted}독 · {after.currentRound}독 {after.currentCompletedCount}/{after.eligibleCount}
       </p>
       <div className="mt-4 flex gap-2">
         <Button variant="secondary" disabled={pending} onClick={onClose}>

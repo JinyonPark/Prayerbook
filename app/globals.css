@@ -18,6 +18,9 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --header-h: 3.5rem;
   --nav-h: 4rem;
+  --status-bar: #3f5c4b;
+  --visual-viewport-top: 0px;
+  --visual-viewport-height: 100dvh;
   color-scheme: light;
 }
 
@@ -33,6 +36,7 @@
   --success: #a3c9b3;
   --overlay: rgba(0, 0, 0, 0.62);
   --focus: #a3c9b3;
+  --status-bar: #121416;
   color-scheme: dark;
 }
 
@@ -68,7 +72,7 @@
 }
 
 html {
-  background: var(--bg);
+  background: var(--status-bar);
 }
 
 html,
@@ -84,6 +88,18 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--safe-top);
+  background: var(--status-bar);
+  z-index: 90;
+  pointer-events: none;
 }
 
 a {
@@ -120,6 +136,8 @@ svg {
 .app-header {
   min-height: var(--header-h);
   padding-top: var(--safe-top);
+  background-color: var(--bg);
+  box-shadow: 0 calc(-1 * var(--safe-top)) 0 var(--status-bar);
 }
 
 .bottom-nav {
@@ -140,6 +158,15 @@ svg {
 .reader-article p {
   margin: 0 0 1.35em;
   white-space: pre-wrap;
+}
+
+.reader-article .prayer-section {
+  margin: 0 0 1.05em;
+}
+
+.reader-article .prayer-sentence {
+  margin: 0 0 0.28em;
+  white-space: normal;
 }
 
 .reader-article ol {
@@ -222,6 +249,13 @@ svg {
 .touch-target {
   min-height: 44px;
   min-width: 44px;
+}
+
+input,
+textarea,
+select {
+  letter-spacing: normal;
+  font-kerning: none;
 }
 
 .drawer-scroll {

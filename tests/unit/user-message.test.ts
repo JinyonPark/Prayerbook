@@ -10,5 +10,8 @@ describe("사용자 오류 메시지", () => {
     expect(toUserMessage({ message: "User already exists", code: "user_already_exists" })).toBe(
       "이미 가입된 아이디 또는 이메일입니다.",
     );
+    expect(toUserMessage({ message: "For security purposes, you can only request this after 59 seconds." })).toBe(
+      "요청이 너무 많습니다.\n잠시 후 다시 시도해 주세요.",
+    );
   });
 });

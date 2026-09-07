@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_KR } from "next/font/google";
+import { InstallPromptProvider } from "@/components/pwa/InstallPromptProvider";
+import { INSTALL_CAPTURE_SCRIPT } from "@/lib/pwa/detect";
 import { THEME_INIT_SCRIPT } from "@/lib/theme/preferences";
 import "./globals.css";
 
@@ -18,7 +20,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "기도훈련집",
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
   },
   formatDetection: {
     telephone: false,
@@ -37,7 +39,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#FAF8F2" },
+    { media: "(prefers-color-scheme: light)", color: "#3f5c4b" },
     { media: "(prefers-color-scheme: dark)", color: "#121416" },
   ],
 };
@@ -47,12 +49,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko" className={notoSansKr.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: INSTALL_CAPTURE_SCRIPT }} />
       </head>
       <body className="min-h-dvh bg-[var(--bg)] text-[var(--text)] antialiased">
         <a className="skip-link" href="#main">
           본문으로 건너뛰기
         </a>
-        {children}
+        <InstallPromptProvider>{children}</InstallPromptProvider>
       </body>
     </html>
   );

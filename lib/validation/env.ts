@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resolveConfiguredSiteUrl } from "@/lib/auth/site-url";
 
 const publicEnvSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url("Supabase URL이 올바르지 않습니다."),
@@ -37,5 +38,5 @@ export function getServiceRoleKey(): string {
 }
 
 export function getSiteUrl(): string {
-  return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return resolveConfiguredSiteUrl();
 }

@@ -8,6 +8,7 @@ import { toUserMessage } from "@/lib/errors/user-message";
 import type { HistoryOperation } from "@/lib/progress/types";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { rpcDeleteAllHistory, rpcDeleteHistoryOperation } from "@/lib/supabase/rpc";
+import { TodayPrayerCard } from "@/components/dashboard/TodayPrayerCard";
 
 const TYPE_LABEL: Record<string, string> = {
   complete: "기도 완료",
@@ -20,13 +21,17 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export function HistoryView({ operations }: { operations: HistoryOperation[] }) {
-  const { online } = useAppState();
+  const { online, refreshDaily } = useAppState();
   const hiddenIds = useRef(new Set<string>());
   const clearedAll = useRef(false);
   const [items, setItems] = useState(operations);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<"all" | HistoryOperation | null>(null);
+
+  useEffect(() => {
+    void refreshDaily();
+  }, [refreshDaily]);
 
   useEffect(() => {
     if (clearedAll.current) {
@@ -45,6 +50,7 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
     try {
       const supabase = createBrowserSupabaseClient();
       await rpcDeleteHistoryOperation(supabase, operation.id);
+      void refreshDaily();
     } catch (err) {
       hiddenIds.current.delete(operation.id);
       setItems((current) =>
@@ -70,6 +76,7 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
     try {
       const supabase = createBrowserSupabaseClient();
       await rpcDeleteAllHistory(supabase);
+      void refreshDaily();
     } catch (err) {
       clearedAll.current = false;
       setItems(previous);
@@ -82,6 +89,7 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
   if (items.length === 0) {
     return (
       <div className="space-y-3">
+        <TodayPrayerCard variant="history" />
         {error ? <p role="alert">{error}</p> : null}
         <p className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">아직 완료 기록이 없습니다.</p>
       </div>
@@ -90,6 +98,7 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
 
   return (
     <div className="space-y-3">
+      <TodayPrayerCard variant="history" />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-[var(--muted)]">목록에서만 지워지며, 기도 완료 횟수는 바뀌지 않습니다.</p>
         <Button variant="danger" disabled={!online || pending} onClick={() => setConfirm("all")}>

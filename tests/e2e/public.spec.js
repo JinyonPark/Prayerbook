@@ -2,7 +2,9 @@ import { test, expect } from "@playwright/test";
 
 const viewports = [
   { width: 320, height: 640 },
+  { width: 360, height: 740 },
   { width: 390, height: 844 },
+  { width: 430, height: 932 },
   { width: 768, height: 1024 },
   { width: 1024, height: 768 },
   { width: 1366, height: 768 },
@@ -16,7 +18,7 @@ test("manifest 파일 접근 가능", async ({ request }) => {
   expect(manifest.name).toBe("기도훈련집");
   expect(manifest.short_name).toBe("기도훈련집");
   expect(manifest.display).toBe("standalone");
-  expect(manifest.start_url).toBe("/");
+  expect(manifest.theme_color).toBe("#3f5c4b");
   expect(manifest.icons.some((icon) => icon.sizes === "192x192")).toBeTruthy();
   expect(manifest.icons.some((icon) => icon.sizes === "512x512")).toBeTruthy();
 });
@@ -31,9 +33,11 @@ test("로그인 화면이 표시된다", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "기도훈련집" })).toBeVisible();
   await expect(page.getByText("Copyright © 오병이어교회")).toBeVisible();
   await expect(page.getByText("권영구 담임목사")).toBeVisible();
-  await expect(page.getByRole("tab", { name: "로그인" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "회원가입" })).toBeVisible();
-  await expect(page.getByLabel("아이디 또는 이메일")).toBeVisible();
+  await expect(page.getByLabel("이메일")).toBeVisible();
+  await expect(page.getByRole("button", { name: "로그인" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "비밀번호를 잊으셨나요?" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "회원가입" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "앱 설치" })).toBeVisible();
 });
 
 for (const viewport of viewports) {

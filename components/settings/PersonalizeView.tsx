@@ -10,10 +10,12 @@ import {
   namesFor,
   type PersonalizationRow,
 } from "@/lib/prayers/personalize";
+import { parseNameList } from "@/lib/prayers/inputs";
+import { CHILDREN_PRAYER_ITEM_ID } from "@/lib/prayers/known-ids";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 export function PersonalizeView() {
-  const { personalizations, setPersonalizations, online } = useAppState();
+  const { personalizations, setPersonalizations, online, prayerInputs, savePrayerInputs } = useAppState();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
 
@@ -135,8 +137,7 @@ export function PersonalizeView() {
   return (
     <div className="space-y-4">
       <p className="text-[var(--muted)]">
-        여기서 저장한 이름과 중보기도가 해당 기도문 본문에 자연스럽게 들어갑니다. 기도문을 읽는 화면에는 편집 버튼이
-        없습니다.
+        여기서 저장한 이름과 중보기도가 해당 기도문 본문에 자연스럽게 들어갑니다. 자녀 이름은 여러 명을 한 번에 입력하며, 기도문 화면에서 함께 표시됩니다.
       </p>
       {!online ? <p>인터넷 연결이 필요합니다. 연결 후 저장할 수 있습니다.</p> : null}
       {error ? <p role="alert">{error}</p> : null}
@@ -146,8 +147,25 @@ export function PersonalizeView() {
           prayer={prayer}
           names={namesFor(personalizations, prayer.slug)}
           intercession={intercessionFor(personalizations, prayer.slug)}
+          childNames={
+            prayer.slug === "children"
+              ? (prayerInputs.find((row) => row.prayer_item_id === CHILDREN_PRAYER_ITEM_ID)?.values.child_names ??
+                namesFor(personalizations, "children").map((row) => row.value))
+              : []
+          }
           pending={pending}
           disabled={!online || pending !== null}
+          onSaveChildNames={async (raw) => {
+            setPending("children-names");
+            setError(null);
+            try {
+              await savePrayerInputs(CHILDREN_PRAYER_ITEM_ID, { child_names: parseNameList(raw) });
+            } catch (err) {
+              setError(toUserMessage(err));
+            } finally {
+              setPending(null);
+            }
+          }}
           onAddName={(value) => {
             const nextOrder = namesFor(personalizations, prayer.slug).reduce(
               (max, row) => Math.max(max, row.sort_order),
@@ -173,9 +191,11 @@ export function PersonalizeView() {
 function PrayerEditor({
   prayer,
   names,
+  childNames,
   intercession,
   pending,
   disabled,
+  onSaveChildNames,
   onAddName,
   onUpdateName,
   onDeleteName,
@@ -184,9 +204,11 @@ function PrayerEditor({
 }: {
   prayer: (typeof PERSONALIZATION_PRAYERS)[number];
   names: PersonalizationRow[];
+  childNames: string[];
   intercession: PersonalizationRow | null;
   pending: string | null;
   disabled: boolean;
+  onSaveChildNames: (raw: string) => Promise<void>;
   onAddName: (value: string) => void;
   onUpdateName: (row: PersonalizationRow, value: string) => void;
   onDeleteName: (row: PersonalizationRow) => void;
@@ -195,6 +217,7 @@ function PrayerEditor({
 }) {
   const [newName, setNewName] = useState("");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [childDraft, setChildDraft] = useState(childNames.join("\n"));
   const [intercessionDraft, setIntercessionDraft] = useState<string | null>(null);
   const atNameLimit = Boolean(prayer.maxNames && names.length >= prayer.maxNames);
   const intercessionValue = intercessionDraft ?? intercession?.value ?? "";
@@ -204,7 +227,26 @@ function PrayerEditor({
       <h2 className="text-lg font-semibold">
         {prayer.itemNumber}. {prayer.title}
       </h2>
-      {prayer.hasNames ? (
+      {prayer.slug === "children" ? (
+        <div className="mt-4 space-y-3">
+          <p className="text-sm text-[var(--muted)]">자녀 이름을 여러 명 한 번에 입력합니다. 기도문에는 함께 표시됩니다.</p>
+          <textarea
+            className="min-h-32 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2"
+            value={childDraft}
+            maxLength={400}
+            disabled={disabled}
+            onChange={(event) => setChildDraft(event.target.value)}
+          />
+          {parseNameList(childDraft).length > 0 ? (
+            <p className="text-sm">표시: {parseNameList(childDraft).join(", ")}</p>
+          ) : (
+            <p className="text-sm">아직 저장된 이름이 없습니다.</p>
+          )}
+          <Button disabled={disabled || pending === "children-names"} onClick={() => void onSaveChildNames(childDraft)}>
+            {pending === "children-names" ? "저장 중" : "저장"}
+          </Button>
+        </div>
+      ) : prayer.hasNames ? (
         <div className="mt-4 space-y-3">
           <p className="text-sm text-[var(--muted)]">{prayer.nameLabel}</p>
           {names.length === 0 ? <p className="text-sm">아직 저장된 이름이 없습니다.</p> : null}

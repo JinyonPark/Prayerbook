@@ -7,7 +7,7 @@ category: main
 counts_toward_total: true
 display_order: 16
 source_url: "https://52-prayer-trainning-book.neocities.org/16_SpiritualPower.html"
-content_version: 1
+content_version: 2
 is_active: true
 ---
 
@@ -30,7 +30,7 @@ is_active: true
 하나님은 나의 능력이십니다.
 하나님은 나의 축복이십니다.
 하나님은 나의 반석이시며, 산성이십니다.
-하나님은 나의 요새이시며, 피난처입니다.
+하나님은 나의 요새이시며, 피난처이십니다.
 나의 힘이 되신 하나님을 사랑합니다. 나의 평생에 주의 인자하심과 성실하심 속에 거하게 하옵소서.
 
 5) 하나님! 다른 사람의 죄를 용서합니다. 나에게 아픔과 상처를 주어 분노와 혈기를 일으키며 미움과 증오를 갖게 했던 사람을 용서합니다. 그를 축복합니다. 그 사람에게 말과 행동으로 분노와 혈기를 일으켰던 악한 영의 세력을 예수님의 이름으로 결박하사 그의 삶에서 물리쳐 주시고, 그의 행동과 입술의 열매가 믿음으로 아름답게 맺히도록 성령의 충만함으로 축복하옵소서.

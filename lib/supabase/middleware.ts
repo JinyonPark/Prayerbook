@@ -1,24 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isAuthPublicPath, safeNextPath } from "@/lib/auth/redirect";
 import { hasPublicEnv } from "@/lib/validation/env";
-
-const PUBLIC_PATHS = ["/login", "/auth", "/manifest.webmanifest", "/sw.js", "/icons", "/offline.html"];
 
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isPublic =
-    PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`)) ||
-    pathname.startsWith("/icons/") ||
-    pathname.startsWith("/api/auth/") ||
-    pathname === "/install";
+  const isPublic = isAuthPublicPath(pathname);
 
   if (!hasPublicEnv()) {
-    if (pathname === "/login" || pathname.startsWith("/auth") || isPublic) {
+    if (isPublic) {
       return NextResponse.next();
     }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("error", "config");
+    url.search = "error=config";
     return NextResponse.redirect(url);
   }
 
@@ -51,18 +46,16 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
-  if (user && pathname === "/login") {
+  const authEntry = pathname === "/login" || pathname === "/signup";
+  if (user && authEntry) {
     const url = request.nextUrl.clone();
-    if (request.nextUrl.searchParams.get("mode") === "update") {
-      url.pathname = "/auth/update-password";
-      url.search = "";
-      return NextResponse.redirect(url);
-    }
-    url.pathname = "/";
+    const next = safeNextPath(request.nextUrl.searchParams.get("next"));
+    url.pathname = next;
     url.search = "";
     return NextResponse.redirect(url);
   }

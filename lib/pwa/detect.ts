@@ -1,3 +1,28 @@
+export type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
+declare global {
+  interface Window {
+    __prayerbookInstallPrompt?: BeforeInstallPromptEvent | null;
+    __prayerbookInstalled?: boolean;
+  }
+}
+
+export const INSTALL_CAPTURE_SCRIPT = `(() => {
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || Boolean(window.navigator.standalone);
+  if (standalone) window.__prayerbookInstalled = true;
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    window.__prayerbookInstallPrompt = event;
+  });
+  window.addEventListener("appinstalled", () => {
+    window.__prayerbookInstallPrompt = null;
+    window.__prayerbookInstalled = true;
+  });
+})();`;
+
 export type InstallPlatform =
   | "android"
   | "iphone"
@@ -5,7 +30,12 @@ export type InstallPlatform =
   | "windows-chrome"
   | "windows-edge"
   | "mac"
+  | "kakao"
   | "other";
+
+export function isKakaoInApp(userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent): boolean {
+  return /KAKAOTALK/i.test(userAgent);
+}
 
 export function isStandaloneDisplay(): boolean {
   if (typeof window === "undefined") return false;
@@ -16,6 +46,7 @@ export function isStandaloneDisplay(): boolean {
 
 export function detectPlatform(userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent): InstallPlatform {
   const ua = userAgent;
+  if (/KAKAOTALK/i.test(ua)) return "kakao";
   const isIPadOS = typeof navigator !== "undefined" && navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
   if (/iPhone/.test(ua)) return "iphone";
   if (/iPad/.test(ua) || isIPadOS) return "ipad";
@@ -80,6 +111,15 @@ export function getInstallSteps(platform: InstallPlatform): { title: string; ste
           "지원되는 브라우저 메뉴를 엽니다.",
           "앱 설치 또는 독에 추가 / 홈 화면에 추가를 선택합니다.",
           "설치가 보이지 않으면 현재 브라우저는 수동 설치만 지원할 수 있습니다.",
+        ],
+      };
+    case "kakao":
+      return {
+        title: "카카오톡 브라우저",
+        steps: [
+          "카카오톡 인앱 브라우저에서는 앱을 바로 설치할 수 없습니다.",
+          "오른쪽 위 메뉴에서 다른 브라우저로 열기를 선택합니다.",
+          "Chrome 또는 Safari에서 다시 앱 설치를 누릅니다.",
         ],
       };
     default:

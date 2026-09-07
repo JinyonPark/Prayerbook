@@ -6,13 +6,14 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { InstallCard } from "@/components/pwa/InstallCard";
+import { AccountSecurity } from "@/components/settings/AccountSecurity";
 import { useAppState } from "@/components/providers/AppProviders";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { toUserMessage } from "@/lib/errors/user-message";
 
 export function SettingsView() {
   const router = useRouter();
-  const { prefs, updatePrefs } = useAppState();
+  const { prefs, updatePrefs, spouseSelection, updateSpouseSelection } = useAppState();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [pending, setPending] = useState(false);
@@ -67,6 +68,22 @@ export function SettingsView() {
       <InstallCard />
 
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+        <h2 className="text-lg font-semibold">배우자 기도 선택</h2>
+        <p className="mt-2 text-[var(--muted)]">
+          남편을 위한 기도와 아내를 위한 기도 중 진행률에 넣을 항목을 선택합니다. 선택하지 않은 기도의 완료 횟수는 삭제되지 않습니다.
+        </p>
+        {spouseSelection ? null : <p className="mt-2">배우자 기도를 선택해 주세요.</p>}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button variant={spouseSelection === "husband" ? "primary" : "secondary"} onClick={() => void updateSpouseSelection("husband")}>
+            남편을 위한 기도
+          </Button>
+          <Button variant={spouseSelection === "wife" ? "primary" : "secondary"} onClick={() => void updateSpouseSelection("wife")}>
+            아내를 위한 기도
+          </Button>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
         <h2 className="text-lg font-semibold">이름·중보기도</h2>
         <p className="mt-2 text-[var(--muted)]">
           태신자, 가족, 교회·목장 중보기도처럼 괄호에 넣는 내용을 저장합니다. 기도문 본문을 스크롤할 때는 편집 창이 열리지
@@ -84,6 +101,8 @@ export function SettingsView() {
           기도 횟수 관리로 이동
         </Link>
       </section>
+
+      <AccountSecurity />
 
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
         <h2 className="text-lg font-semibold">계정</h2>
@@ -121,28 +140,33 @@ export function SettingsView() {
         <p className="mt-2 text-sm text-[var(--muted)]">
           회원 탈퇴는 기도 기록 초기화와 다릅니다. 탈퇴하면 계정, 진행 기록, 설정이 삭제됩니다.
         </p>
-        <Button variant="danger" className="mt-3" onClick={() => setDeleteOpen(true)}>
+        <Button variant="danger" className="mt-3" onClick={() => { setConfirmText(""); setError(null); setDeleteOpen(true); }}>
           회원 탈퇴
         </Button>
       </section>
 
-      <Modal open={deleteOpen} title="회원 탈퇴" onClose={() => setDeleteOpen(false)} closeDisabled={pending}>
+      <Modal open={deleteOpen} title="회원 탈퇴" onClose={() => { setDeleteOpen(false); setConfirmText(""); }} closeDisabled={pending}>
         <p>정말로 탈퇴하시겠습니까? 기도 기록과 설정이 함께 삭제되며 되돌릴 수 없습니다.</p>
         <p className="mt-3 text-sm">확인을 위해 회원 탈퇴를 입력하세요.</p>
         <input
+          key={deleteOpen ? "confirm-open" : "confirm-closed"}
           className="touch-target mt-2 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3"
-          value={confirmText}
-          onChange={(event) => setConfirmText(event.target.value)}
+          defaultValue=""
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          lang="ko"
           disabled={pending}
+          onInput={(event) => setConfirmText(event.currentTarget.value)}
         />
         {error ? <p className="mt-2" role="alert">{error}</p> : null}
         <div className="mt-4 flex gap-2">
-          <Button variant="secondary" onClick={() => setDeleteOpen(false)} disabled={pending}>
+          <Button variant="secondary" onClick={() => { setDeleteOpen(false); setConfirmText(""); }} disabled={pending}>
             취소
           </Button>
           <Button
             variant="danger"
-            disabled={pending || confirmText !== "회원 탈퇴"}
+            disabled={pending || confirmText.normalize("NFC") !== "회원 탈퇴"}
             onClick={async () => {
               setPending(true);
               setError(null);

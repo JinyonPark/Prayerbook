@@ -2,12 +2,12 @@
 id: 5f916884-8802-5c9e-85e0-50df55a10ea8
 item_number: 11
 slug: parents
-title: "부모를 위한 기도"
+title: "부모님을 위한 기도"
 category: main
 counts_toward_total: true
 display_order: 11
 source_url: "https://52-prayer-trainning-book.neocities.org/11_Parents.html"
-content_version: 1
+content_version: 2
 is_active: true
 ---
 

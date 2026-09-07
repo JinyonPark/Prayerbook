@@ -1,4 +1,4 @@
-const VERSION = "prayer-book-v5";
+const VERSION = "prayer-book-v8";
 const SHELL = ["/", "/login", "/install", "/manifest.webmanifest", "/offline.html", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -33,7 +33,7 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/auth/")) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(networkFirst(request));
+    event.respondWith(networkFirstPublic(request));
     return;
   }
 
@@ -46,6 +46,27 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(staleWhileRevalidate(request));
 });
+
+async function networkFirstPublic(request) {
+  try {
+    const response = await fetch(request);
+    const url = new URL(request.url);
+    const cacheable =
+      url.pathname === "/login" ||
+      url.pathname === "/signup" ||
+      url.pathname === "/install" ||
+      url.pathname === "/forgot-password" ||
+      url.pathname.startsWith("/prayers/");
+    if (cacheable && response.ok) {
+      const cache = await caches.open(VERSION);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    return cached || caches.match("/offline.html");
+  }
+}
 
 async function networkFirst(request) {
   try {

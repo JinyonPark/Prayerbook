@@ -1,4 +1,5 @@
 import type { PrayerCountItem } from "@/lib/progress/calculate";
+import { normalizeDailySummary, type DailyPrayerSummary } from "@/lib/progress/daily";
 import type { RpcMutationResult, RpcProgressSummary } from "@/lib/progress/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -17,6 +18,17 @@ export async function fetchProgressSummary(supabase: SupabaseClient): Promise<Rp
   const { data, error } = await supabase.rpc("get_prayer_progress_summary");
   if (error) throw error;
   return data as RpcProgressSummary;
+}
+
+export async function fetchDailyPrayerSummary(
+  supabase: SupabaseClient,
+  targetDate?: string | null,
+): Promise<DailyPrayerSummary> {
+  const { data, error } = await supabase.rpc("get_daily_prayer_summary", {
+    target_date: targetDate ?? null,
+  });
+  if (error) throw error;
+  return normalizeDailySummary(data);
 }
 
 export async function rpcComplete(

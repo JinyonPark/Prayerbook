@@ -3,17 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { InstallButton } from "@/components/pwa/InstallButton";
 import { detectPlatform, getInstallSteps, isStandaloneDisplay } from "@/lib/pwa/detect";
 import { INSTALL_DISMISS_KEY } from "@/lib/theme/preferences";
 
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-};
-
 export function InstallCard({ compact = false }: { compact?: boolean }) {
   const [standalone, setStandalone] = useState(false);
-  const [promptEvent, setPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [platform, setPlatform] = useState(detectPlatform());
 
@@ -22,13 +17,6 @@ export function InstallCard({ compact = false }: { compact?: boolean }) {
     setPlatform(detectPlatform());
     const until = Number(window.localStorage.getItem(INSTALL_DISMISS_KEY) ?? 0);
     setDismissed(Date.now() < until);
-
-    function onPrompt(event: Event) {
-      event.preventDefault();
-      setPromptEvent(event as BeforeInstallPromptEvent);
-    }
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
   }, []);
 
   if (standalone || dismissed) return null;
@@ -45,16 +33,7 @@ export function InstallCard({ compact = false }: { compact?: boolean }) {
         PWA는 기기마다 설치됩니다. 앱을 삭제해도 서버의 기도 기록은 유지됩니다.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        {promptEvent ? (
-          <Button
-            onClick={async () => {
-              await promptEvent.prompt();
-              setPromptEvent(null);
-            }}
-          >
-            앱 설치
-          </Button>
-        ) : null}
+        <InstallButton />
         <Link href="/install" className="touch-target inline-flex items-center rounded-xl border border-[var(--border)] px-4">
           설치 방법 보기
         </Link>
@@ -90,13 +69,23 @@ export function InstallGuide() {
   }, []);
 
   const current = getInstallSteps(platform);
-  const all = ["android", "iphone", "ipad", "windows-chrome", "windows-edge", "mac"] as const;
+  const all = ["android", "iphone", "ipad", "windows-chrome", "windows-edge", "mac", "kakao"] as const;
 
   return (
     <div className="space-y-6">
       {standalone ? (
         <p className="rounded-2xl bg-[var(--card)] p-4">이미 앱으로 실행 중입니다.</p>
-      ) : null}
+      ) : (
+        <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+          <h2 className="text-lg font-semibold">이 기기에 설치</h2>
+          <p className="mt-2 text-[var(--muted)]">
+            설치되어 있지 않으면 버튼을 눌러 앱으로 추가할 수 있습니다. 바로 설치 창이 없는 기기는 아래 순서를 안내합니다.
+          </p>
+          <div className="mt-4">
+            <InstallButton className="w-full sm:w-auto" />
+          </div>
+        </section>
+      )}
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
         <h2 className="text-lg font-semibold">현재 기기: {current.title}</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5">

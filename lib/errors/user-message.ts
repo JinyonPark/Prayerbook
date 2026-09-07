@@ -26,10 +26,10 @@ export function toUserMessage(error: unknown): string {
     return "기도문을 찾을 수 없습니다.";
   }
   if (code.includes("Failed to fetch") || code.includes("NetworkError") || code.includes("fetch")) {
-    return "인터넷 연결을 확인해 주세요.";
+    return "서버에 연결할 수 없습니다.\n인터넷 연결을 확인한 후 다시 시도해 주세요.";
   }
   if (code.includes("Invalid login credentials")) {
-    return "아이디/이메일 또는 비밀번호가 올바르지 않습니다.";
+    return "이메일 또는 비밀번호를 확인해 주세요.";
   }
   if (
     combined.includes("email_exists") ||
@@ -44,13 +44,13 @@ export function toUserMessage(error: unknown): string {
     return "이미 저장된 이름입니다.";
   }
   if (code.includes("Password should be")) {
-    return "비밀번호는 6자 이상이어야 합니다.";
+    return "비밀번호는 최소 8자 이상 입력해 주세요.";
   }
   if (code.includes("Email not confirmed")) {
-    return "이메일 인증을 완료한 뒤 로그인해 주세요.";
+    return "이메일 인증이 완료되지 않았습니다.\n가입 시 입력한 이메일에서 인증 링크를 확인해 주세요.";
   }
-  if (code.includes("For security purposes")) {
-    return "요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.";
+  if (code.includes("For security purposes") || combined.includes("over_email_send_rate_limit")) {
+    return "요청이 너무 많습니다.\n잠시 후 다시 시도해 주세요.";
   }
 
   return "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.";

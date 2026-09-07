@@ -56,7 +56,7 @@ export const PRAYER_CATALOG: PrayerCatalogEntry[] = [
   },
   {
     slug: "cell-group",
-    title: "목장을 위한 기도",
+    title: "목장과 목장원을 위한 기도",
     category: "main",
     itemNumber: 5,
     countsTowardTotal: true,
@@ -116,7 +116,7 @@ export const PRAYER_CATALOG: PrayerCatalogEntry[] = [
   },
   {
     slug: "parents",
-    title: "부모를 위한 기도",
+    title: "부모님을 위한 기도",
     category: "main",
     itemNumber: 11,
     countsTowardTotal: true,

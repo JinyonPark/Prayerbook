@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAuthIdentifier, syntheticAuthEmail } from "@/lib/auth/identifier";
+import { parseAuthIdentifier, syntheticAuthEmail, isSyntheticAuthEmail } from "@/lib/auth/identifier";
 
 describe("로그인 식별자", () => {
   it("이메일을 소문자로 정규화한다", () => {
@@ -27,5 +27,7 @@ describe("로그인 식별자", () => {
 
   it("아이디용 내부 이메일을 만든다", () => {
     expect(syntheticAuthEmail("jin_01")).toBe("u-jin_01@id.prayerbook.app");
+    expect(isSyntheticAuthEmail("u-jin_01@id.prayerbook.app")).toBe(true);
+    expect(isSyntheticAuthEmail("jin@gmail.com")).toBe(false);
   });
 });

@@ -21,13 +21,13 @@ describe("기도문 개인화", () => {
   });
 
   it("사람 이름에 조사 이/가, 을/를을 붙인다", () => {
-    const source = "하나님 아버지의 이름이 (ㅇㅇㅇ)를 통하여 거룩히 여김 받으시기를 원합니다. 그리고ㅇㅇㅇ가 하나님의 이름을 거룩히 여기는 일을 찾아서 하기를 원합니다.";
+    const source = "하나님 아버지의 이름이 (ㅇㅇㅇ)를 통하여 거룩히 여김 받으시기를 원합니다. 그리고 ㅇㅇㅇ가 하나님의 이름을 거룩히 여기는 일을 찾아서 하기를 원합니다.";
     const batchim = applyPersonalization(source, "faculties", { name: "길동" });
     expect(batchim).toContain("길동을 통하여");
-    expect(batchim).toContain("길동이");
+    expect(batchim).toContain("그리고 길동이");
     const open = applyPersonalization(source, "faculties", { name: "영희" });
     expect(open).toContain("영희를 통하여");
-    expect(open).toContain("영희가");
+    expect(open).toContain("그리고 영희가");
   });
 
   it("남편 이름과 중보기도 본문을 바꾼다", () => {

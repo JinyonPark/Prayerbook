@@ -3,6 +3,7 @@ import { MAIN_PRAYER_COUNT } from "@/lib/prayers/catalog";
 import {
   calculateProgress,
   calculateProgressFromItems,
+  eligiblePrayerItems,
   findNextIncomplete,
   previewComplete,
   previewCurrentRoundReset,
@@ -137,5 +138,60 @@ describe("Total N독 계산", () => {
     const after = previewComplete(items, "main-1");
     expect(after[0]?.completionCount).toBe(1);
     expect(after[1]?.completionCount).toBe(0);
+  });
+});
+
+describe("배우자 기도 선택 진행률", () => {
+  it("선택이 없으면 27개 기준으로 계산한다", () => {
+    const result = calculateProgressFromItems(itemsFromMain(Array(MAIN_PRAYER_COUNT).fill(1)));
+    expect(result.totalCompleted).toBe(1);
+    expect(result.eligibleCount).toBe(MAIN_PRAYER_COUNT);
+  });
+
+  it("남편 기도 선택 시 아내 기도 0회가 Total을 막지 않는다", () => {
+    const values = Array(MAIN_PRAYER_COUNT).fill(1);
+    values[9] = 0;
+    const result = calculateProgressFromItems(itemsFromMain(values), "husband");
+    expect(result.totalCompleted).toBe(1);
+    expect(result.eligibleCount).toBe(MAIN_PRAYER_COUNT - 1);
+    expect(result.eligibleCount).not.toBe(27);
+  });
+
+  it("아내 기도 선택 시 남편 기도 0회가 Total을 막지 않는다", () => {
+    const values = Array(MAIN_PRAYER_COUNT).fill(1);
+    values[8] = 0;
+    const result = calculateProgressFromItems(itemsFromMain(values), "wife");
+    expect(result.totalCompleted).toBe(1);
+    expect(result.eligibleCount).toBe(26);
+  });
+
+  it("남편 선택 시 다음 미완료에서 아내 기도를 제외한다", () => {
+    const values = Array(MAIN_PRAYER_COUNT).fill(1);
+    values[9] = 0;
+    values[10] = 0;
+    const next = findNextIncomplete(itemsFromMain(values), 1, "husband");
+    expect(next?.itemNumber).toBe(11);
+  });
+
+  it("선택을 바꾸면 완료 횟수는 유지되고 eligible set만 바뀐다", () => {
+    const values = Array(MAIN_PRAYER_COUNT).fill(1);
+    values[8] = 3;
+    values[9] = 0;
+    const items = itemsFromMain(values);
+    const husband = calculateProgressFromItems(items, "husband");
+    const wife = calculateProgressFromItems(items, "wife");
+    expect(items.find((item) => item.itemNumber === 9)?.completionCount).toBe(3);
+    expect(items.find((item) => item.itemNumber === 10)?.completionCount).toBe(0);
+    expect(husband.totalCompleted).toBe(1);
+    expect(wife.totalCompleted).toBe(0);
+    expect(husband.eligibleCount).toBe(26);
+    expect(wife.eligibleCount).toBe(26);
+  });
+
+  it("분모는 eligible item 수이다", () => {
+    const items = itemsFromMain(Array(MAIN_PRAYER_COUNT).fill(1));
+    const husband = calculateProgressFromItems(items, "husband");
+    expect(husband.eligibleCount).toBe(eligiblePrayerItems(items, "husband").length);
+    expect(husband.eligibleCount).toBe(26);
   });
 });

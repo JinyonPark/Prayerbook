@@ -14,6 +14,7 @@ export type RpcProgressItem = {
   display_order: number;
   completion_count: number;
   is_completed_in_current_round: boolean | null;
+  excluded_from_progress?: boolean;
 };
 
 export type RpcProgressSummary = {
@@ -21,6 +22,8 @@ export type RpcProgressSummary = {
   current_round: number;
   current_completed_count: number;
   progress_percent: number;
+  eligible_count?: number;
+  spouse_prayer_selection?: "husband" | "wife" | null;
   items: RpcProgressItem[];
 };
 
@@ -36,6 +39,8 @@ export type RpcMutationResult = RpcProgressSummary & {
 export type ReadingState = {
   last_prayer_item_id: string | null;
   scroll_ratio: number;
+  anchor_key?: string | null;
+  anchor_offset?: number | null;
   last_opened_at: string | null;
   updated_at: string | null;
 };
@@ -44,6 +49,9 @@ export type UserPreferences = {
   theme: "day" | "night";
   font_size: "small" | "default" | "large" | "xlarge";
   line_height: "compact" | "comfortable" | "spacious";
+  spouse_prayer_selection?: "husband" | "wife" | null;
+  auto_scroll_speed?: "slow" | "normal" | "fast";
+  time_zone?: string;
 };
 
 export type HistoryOperation = {

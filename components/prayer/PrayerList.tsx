@@ -30,7 +30,9 @@ export function PrayerList({
                 </p>
                 {item.category === "main" ? (
                   <p className="text-sm text-[var(--muted)]">
-                    이번 {round}독 {done ? "완료" : "미완료"} · 누적 {count}회
+                    {progress?.excluded_from_progress
+                      ? `진행률 제외 · 누적 ${count}회`
+                      : `이번 ${round}독 ${done ? "완료" : "미완료"} · 누적 ${count}회`}
                   </p>
                 ) : (
                   <p className="text-sm text-[var(--muted)]">누적 {count}회</p>

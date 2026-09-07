@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { InstallButton } from "@/components/pwa/InstallButton";
 
 const items = [
   { href: "/", label: "홈" },
@@ -11,14 +12,16 @@ const items = [
 ];
 
 export function AppHeader({ title, hiddenOnMobile = false }: { title: string; hiddenOnMobile?: boolean }) {
+  const pathname = usePathname();
   return (
     <header
       className={`app-header sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur ${
         hiddenOnMobile ? "max-lg:hidden" : ""
       }`}
     >
-      <div className="mx-auto flex min-h-14 max-w-6xl items-center px-5">
-        <h1 className="text-lg font-semibold">{title}</h1>
+      <div className="mx-auto flex min-h-14 max-w-6xl items-center gap-3 px-5">
+        <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{title}</h1>
+        {pathname === "/install" ? null : <InstallButton variant="header" />}
       </div>
     </header>
   );

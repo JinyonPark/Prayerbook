@@ -1,3 +1,10 @@
+import {
+  formatNameList,
+  lastNameForParticle,
+  sanitizePlainText,
+  type PrayerInputValues,
+} from "@/lib/prayers/inputs";
+
 export type PersonalizationSlot = "name" | "intercession";
 
 export type PersonalizationRow = {
@@ -32,7 +39,7 @@ export const PERSONALIZATION_PRAYERS: PersonalizationConfig[] = [
   {
     slug: "cell-group",
     itemNumber: 5,
-    title: "목장을 위한 기도",
+    title: "목장과 목장원을 위한 기도",
     hasNames: false,
     hasIntercession: true,
     intercessionLabel: "목장을 위한 중보기도",
@@ -78,7 +85,7 @@ export const PERSONALIZATION_PRAYERS: PersonalizationConfig[] = [
   {
     slug: "parents",
     itemNumber: 11,
-    title: "부모를 위한 기도",
+    title: "부모님을 위한 기도",
     hasNames: false,
     hasIntercession: true,
     intercessionLabel: "부모를 위한 중보기도",
@@ -88,7 +95,7 @@ export const PERSONALIZATION_PRAYERS: PersonalizationConfig[] = [
     itemNumber: 12,
     title: "자녀를 위한 기도",
     hasNames: true,
-    nameLabel: "자녀 이름",
+    nameLabel: "자녀 이름 (여러 명)",
     hasIntercession: true,
     intercessionLabel: "자녀를 위한 중보기도",
   },
@@ -140,7 +147,11 @@ function eunNeun(name: string): string {
   return `${name}${hasBatchim(name) ? "은" : "는"}`;
 }
 
-function replaceNamePlaceholders(markdown: string, name: string, honorific?: "씨"): string {
+function replaceNamePlaceholders(markdown: string, names: string[], honorific?: "씨"): string {
+  if (names.length === 0) return markdown;
+  const last = lastNameForParticle(names);
+  const prefix = names.length > 1 ? `${formatNameList(names.slice(0, -1))}, ` : "";
+  const name = `${prefix}${last}`;
   const labeled = honorific ? `${name}${honorific}` : name;
   const replacements: Array<[RegExp, string]> = [
     [/\(태신자 이름\)\s*씨/g, labeled],
@@ -154,18 +165,19 @@ function replaceNamePlaceholders(markdown: string, name: string, honorific?: "�
     [/ㅇㅇㅇ씨/g, labeled],
     [/남편\(ㅇㅇㅇ\)/g, `남편(${name})`],
     [/아내\(ㅇㅇㅇ\)/g, `아내(${name})`],
-    [/\(ㅇㅇㅇ를 위한 중보기도\)/g, `(${eulReul(name)} 위한 중보기도)`],
-    [/\(ㅇㅇㅇ\)를/g, `${eulReul(name)}`],
+    [/\(ㅇㅇㅇ를 위한 중보기도\)/g, `(${prefix}${eulReul(last)} 위한 중보기도)`],
+    [/\(ㅇㅇㅇ\)를/g, `${prefix}${eulReul(last)}`],
     [/\(ㅇㅇㅇ\)/g, name],
-    [/우리 ㅇㅇㅇ가/g, `우리 ${iGa(name)}`],
+    [/우리 ㅇㅇㅇ가/g, `우리 ${prefix}${iGa(last)}`],
     [/ㅇㅇㅇ에게/g, `${name}에게`],
     [/ㅇㅇㅇ의/g, `${name}의`],
-    [/ㅇㅇㅇ을/g, eulReul(name)],
-    [/ㅇㅇㅇ를/g, eulReul(name)],
-    [/ㅇㅇㅇ가/g, iGa(name)],
-    [/ㅇㅇㅇ는/g, eunNeun(name)],
-    [/ㅇㅇㅇ연약하오니/g, `${eunNeun(name)} 연약하오니`],
-    [/ㅇㅇㅇ 가/g, iGa(name)],
+    [/ㅇㅇㅇ을/g, `${prefix}${eulReul(last)}`],
+    [/ㅇㅇㅇ를/g, `${prefix}${eulReul(last)}`],
+    [/ㅇㅇㅇ가/g, `${prefix}${iGa(last)}`],
+    [/ㅇㅇㅇ는/g, `${prefix}${eunNeun(last)}`],
+    [/ㅇㅇㅇ이/g, `${prefix}${iGa(last)}`],
+    [/ㅇㅇㅇ연약하오니/g, `${prefix}${eunNeun(last)} 연약하오니`],
+    [/ㅇㅇㅇ 가/g, `${prefix}${iGa(last)}`],
     [/ㅇㅇㅇ/g, name],
   ];
 
@@ -179,7 +191,7 @@ function replaceNamePlaceholders(markdown: string, name: string, honorific?: "�
 export function applyPersonalization(
   markdown: string,
   slug: string,
-  options: { name?: string | null; intercession?: string | null },
+  options: { name?: string | null; names?: string[]; intercession?: string | null },
 ): string {
   let next = markdown;
   const intercession = options.intercession?.trim();
@@ -190,10 +202,51 @@ export function applyPersonalization(
     }
   }
 
-  const name = options.name?.trim();
-  if (name) {
+  const names = (options.names?.filter(Boolean) ?? []).length
+    ? (options.names ?? []).map((item) => item.trim()).filter(Boolean)
+    : options.name?.trim()
+      ? [options.name.trim()]
+      : [];
+  if (names.length > 0) {
     const config = personalizationConfig(slug);
-    next = replaceNamePlaceholders(next, name, config?.honorific);
+    next = replaceNamePlaceholders(next, names, config?.honorific);
+  }
+  return next;
+}
+
+export function applyPrayerInputValues(
+  markdown: string,
+  slug: string,
+  values: PrayerInputValues,
+): string {
+  let next = markdown;
+  if (slug === "hope-prayer") {
+    const wish = values.wish_text ? sanitizePlainText(values.wish_text, 80) : "";
+    const person = values.forgiveness_person_name ? sanitizePlainText(values.forgiveness_person_name, 40) : "";
+    if (wish) {
+      next = next.replace(/나의 소원은 \([^)]*\)\s*입니다/, `나의 소원은 (${wish})입니다`);
+    }
+    if (person) {
+      next = next.replace(/다른 사람\(\s*이름\s*\)/, `다른 사람(${person})`);
+    }
+  }
+  if (slug === "conceived-prayer") {
+    const target = values.evangelism_target_name ? sanitizePlainText(values.evangelism_target_name, 40) : "";
+    if (target) {
+      next = next.replace(/\(\s+\)/g, `(${target})`);
+      next = next.replace(/○○○/g, target);
+    }
+  }
+  if (slug === "heal-sickness") {
+    const target = values.disease_target_name ? sanitizePlainText(values.disease_target_name, 40) : "";
+    const disease = values.disease_name ? sanitizePlainText(values.disease_name, 40) : "";
+    if (target) {
+      next = next.replace(/나\(다른 사람 이름\)/g, target);
+      next = next.replace(/다른 사람\(이름\)/g, target);
+    }
+    if (disease) {
+      next = next.replace(/위암\(병명\)/g, disease);
+    }
   }
   return next;
 }

@@ -1,4 +1,5 @@
 import { MAIN_PRAYER_COUNT } from "@/lib/prayers/catalog";
+import { excludedSpouseItemNumber, type SpousePrayerSelection } from "@/lib/progress/spouse";
 
 export const MAIN_PRAYER_TOTAL = MAIN_PRAYER_COUNT;
 export const MAX_COMPLETION_COUNT = 10_000;
@@ -13,6 +14,7 @@ export type ProgressSummary = {
   currentRound: number;
   currentCompletedCount: number;
   progressPercent: number;
+  eligibleCount: number;
 };
 
 export type PrayerCountItem = {
@@ -29,34 +31,76 @@ export function normalizeCount(value: number | null | undefined): number {
   return value;
 }
 
-export function calculateProgress(mainCounts: Array<number | null | undefined>): ProgressSummary {
-  const counts = Array.from({ length: MAIN_PRAYER_TOTAL }, (_, index) =>
-    normalizeCount(mainCounts[index]),
-  );
-  const totalCompleted = counts.length === 0 ? 0 : Math.min(...counts);
+export function isProgressEligible(item: PrayerCountItem, selection: SpousePrayerSelection = null): boolean {
+  if (item.category !== "main" || !item.countsTowardTotal) return false;
+  const excluded = excludedSpouseItemNumber(selection);
+  if (excluded !== null && item.itemNumber === excluded) return false;
+  return true;
+}
+
+export function eligiblePrayerItems(
+  items: PrayerCountItem[],
+  selection: SpousePrayerSelection = null,
+): PrayerCountItem[] {
+  return items
+    .filter((item) => isProgressEligible(item, selection))
+    .sort((a, b) => (a.itemNumber ?? 0) - (b.itemNumber ?? 0));
+}
+
+function summaryFromEligible(eligible: PrayerCountItem[]): ProgressSummary {
+  const eligibleCount = eligible.length;
+  if (eligibleCount === 0) {
+    return {
+      totalCompleted: 0,
+      currentRound: 1,
+      currentCompletedCount: 0,
+      progressPercent: 0,
+      eligibleCount: 0,
+    };
+  }
+  const counts = eligible.map((item) => normalizeCount(item.completionCount));
+  const totalCompleted = Math.min(...counts);
   const currentRound = totalCompleted + 1;
   const currentCompletedCount = counts.filter((count) => count >= currentRound).length;
-  const progressPercent = (currentCompletedCount / MAIN_PRAYER_TOTAL) * 100;
-
   return {
     totalCompleted,
     currentRound,
     currentCompletedCount,
-    progressPercent,
+    progressPercent: (currentCompletedCount / eligibleCount) * 100,
+    eligibleCount,
   };
 }
 
-export function calculateProgressFromItems(items: PrayerCountItem[]): ProgressSummary {
-  const mainItems = items
-    .filter((item) => item.category === "main" && item.countsTowardTotal)
-    .sort((a, b) => (a.itemNumber ?? 0) - (b.itemNumber ?? 0));
+export function calculateProgress(mainCounts: Array<number | null | undefined>): ProgressSummary {
+  const counts = Array.from({ length: MAIN_PRAYER_TOTAL }, (_, index) =>
+    normalizeCount(mainCounts[index]),
+  );
+  return summaryFromEligible(
+    counts.map((completionCount, index) => ({
+      id: `main-${index + 1}`,
+      category: "main",
+      countsTowardTotal: true,
+      itemNumber: index + 1,
+      displayOrder: index + 1,
+      completionCount,
+    })),
+  );
+}
 
-  const counts = Array.from({ length: MAIN_PRAYER_TOTAL }, (_, index) => {
-    const item = mainItems.find((candidate) => candidate.itemNumber === index + 1);
-    return item ? item.completionCount : 0;
-  });
+export function calculateProgressFromItems(
+  items: PrayerCountItem[],
+  selection: SpousePrayerSelection = null,
+): ProgressSummary {
+  return summaryFromEligible(eligiblePrayerItems(items, selection));
+}
 
-  return calculateProgress(counts);
+export function eligibleCountFromSummary(summary: {
+  eligible_count?: number;
+  items?: Array<{ counts_toward_total: boolean; excluded_from_progress?: boolean }>;
+} | null | undefined): number {
+  if (typeof summary?.eligible_count === "number") return summary.eligible_count;
+  const items = summary?.items ?? [];
+  return items.filter((item) => item.counts_toward_total && !item.excluded_from_progress).length;
 }
 
 export function isCompletedInCurrentRound(
@@ -66,12 +110,15 @@ export function isCompletedInCurrentRound(
   return completionCount >= currentRound;
 }
 
-export function findNextIncomplete(items: PrayerCountItem[], currentRound: number): PrayerCountItem | null {
+export function findNextIncomplete(
+  items: PrayerCountItem[],
+  currentRound: number,
+  selection: SpousePrayerSelection = null,
+): PrayerCountItem | null {
   const incomplete = items
     .filter(
       (item) =>
-        item.category === "main" &&
-        item.countsTowardTotal &&
+        isProgressEligible(item, selection) &&
         item.completionCount < currentRound,
     )
     .sort((a, b) => a.displayOrder - b.displayOrder);
@@ -79,10 +126,13 @@ export function findNextIncomplete(items: PrayerCountItem[], currentRound: numbe
   return incomplete[0] ?? null;
 }
 
-export function previewCurrentRoundReset(items: PrayerCountItem[]): PrayerCountItem[] {
-  const { totalCompleted } = calculateProgressFromItems(items);
+export function previewCurrentRoundReset(
+  items: PrayerCountItem[],
+  selection: SpousePrayerSelection = null,
+): PrayerCountItem[] {
+  const { totalCompleted } = calculateProgressFromItems(items, selection);
   return items.map((item) => {
-    if (item.category !== "main" || !item.countsTowardTotal) return item;
+    if (!isProgressEligible(item, selection)) return item;
     if (item.completionCount > totalCompleted) {
       return { ...item, completionCount: totalCompleted };
     }
