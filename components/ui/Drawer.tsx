@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { lockBodyScroll, useVisualViewport } from "@/lib/pwa/visual-viewport";
 
 type Props = {
   open: boolean;
@@ -13,7 +14,10 @@ export function Drawer({ open, title, onClose, children }: Props) {
   const headingId = useId();
   const headerRef = useRef<HTMLDivElement>(null);
   const lastFocus = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const [listHeight, setListHeight] = useState(360);
+  useVisualViewport();
 
   useEffect(() => {
     if (!open) return;
@@ -26,21 +30,14 @@ export function Drawer({ open, title, onClose, children }: Props) {
     }
 
     lastFocus.current = document.activeElement as HTMLElement | null;
-    const scrollY = window.scrollY;
-    const previous = document.body.style.cssText;
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.left = "0";
-    document.body.style.right = "0";
-    document.body.style.width = "100%";
-
+    const unlock = lockBodyScroll();
     measure();
     const frame = window.requestAnimationFrame(measure);
     window.visualViewport?.addEventListener("resize", measure);
     window.addEventListener("resize", measure);
 
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     }
     document.addEventListener("keydown", onKey);
 
@@ -49,21 +46,28 @@ export function Drawer({ open, title, onClose, children }: Props) {
       window.visualViewport?.removeEventListener("resize", measure);
       window.removeEventListener("resize", measure);
       document.removeEventListener("keydown", onKey);
-      document.body.style.cssText = previous;
-      window.scrollTo(0, scrollY);
+      unlock();
       lastFocus.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex flex-col lg:hidden" style={{ height: "100dvh" }}>
+    <div
+      className="fixed z-[80] flex flex-col lg:hidden"
+      style={{
+        top: "var(--visual-viewport-top, 0px)",
+        height: "var(--visual-viewport-height, 100dvh)",
+        left: 0,
+        right: 0,
+      }}
+    >
       <button
         type="button"
         aria-label="목차 닫기"
         className="min-h-0 flex-1 bg-[var(--overlay)]"
-        onClick={onClose}
+        onClick={() => onCloseRef.current()}
       />
       <div
         role="dialog"
@@ -86,7 +90,6 @@ export function Drawer({ open, title, onClose, children }: Props) {
             touchAction: "pan-y",
             overscrollBehavior: "contain",
           }}
-          onTouchMove={(event) => event.stopPropagation()}
         >
           {children}
         </div>

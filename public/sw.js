@@ -1,4 +1,4 @@
-const VERSION = "prayer-book-v8";
+const VERSION = "prayer-book-v9";
 const SHELL = ["/", "/login", "/install", "/manifest.webmanifest", "/offline.html", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -23,6 +23,16 @@ self.addEventListener("message", (event) => {
   }
 });
 
+function isNextRouterRequest(request, url) {
+  if (url.searchParams.has("_rsc")) return true;
+  if (request.headers.has("RSC")) return true;
+  if (request.headers.has("Next-Router-State-Tree")) return true;
+  if (request.headers.has("Next-Url")) return true;
+  if (request.headers.get("Purpose") === "prefetch") return true;
+  if (request.headers.get("Sec-Purpose") === "prefetch") return true;
+  return false;
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
@@ -31,6 +41,7 @@ self.addEventListener("fetch", (event) => {
   if (url.hostname.includes("supabase.co")) return;
   if (url.pathname.startsWith("/api/")) return;
   if (url.pathname.startsWith("/auth/")) return;
+  if (isNextRouterRequest(request, url)) return;
 
   if (request.mode === "navigate") {
     event.respondWith(networkFirstPublic(request));
@@ -55,8 +66,7 @@ async function networkFirstPublic(request) {
       url.pathname === "/login" ||
       url.pathname === "/signup" ||
       url.pathname === "/install" ||
-      url.pathname === "/forgot-password" ||
-      url.pathname.startsWith("/prayers/");
+      url.pathname === "/forgot-password";
     if (cacheable && response.ok) {
       const cache = await caches.open(VERSION);
       cache.put(request, response.clone());

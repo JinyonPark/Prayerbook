@@ -51,6 +51,7 @@ export type UserPreferences = {
   line_height: "compact" | "comfortable" | "spacious";
   spouse_prayer_selection?: "husband" | "wife" | null;
   auto_scroll_speed?: "slow" | "normal" | "fast";
+  auto_scroll_enabled?: boolean;
   time_zone?: string;
 };
 

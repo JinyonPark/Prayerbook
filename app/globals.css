@@ -14,7 +14,8 @@
   --focus: #2c5f4a;
   --reader-font-size: 20px;
   --reader-line-height: 1.8;
-  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-top-env: env(safe-area-inset-top, 0px);
+  --safe-top: var(--safe-top-env);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --header-h: 3.5rem;
   --nav-h: 4rem;
@@ -102,6 +103,13 @@ body::before {
   pointer-events: none;
 }
 
+@media (max-width: 1023px) {
+  :root {
+    /* Android often reports 0 for safe-area; keep the clock on a dark strip. */
+    --safe-top: max(var(--safe-top-env), 48px);
+  }
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -187,6 +195,7 @@ svg {
 
 .reader-chrome {
   min-height: 3.25rem;
+  z-index: 40;
 }
 
 .reader-chrome-spacer {

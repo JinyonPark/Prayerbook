@@ -12,6 +12,7 @@ import { parseSpousePrayerSelection, type SpousePrayerSelection } from "@/lib/pr
 import {
   applyPreferences,
   defaultPreferences,
+  parseAutoScrollEnabled,
   readCachedPreferences,
   writeCachedPreferences,
   type CachedPreferences,
@@ -63,6 +64,27 @@ function prefsFromServer(initialPrefs: UserPreferences | null, cached: CachedPre
     fontSize: initialPrefs.font_size,
     lineHeight: initialPrefs.line_height,
     autoScrollSpeed: parseAutoScrollSpeed(initialPrefs.auto_scroll_speed ?? cached.autoScrollSpeed),
+    autoScrollEnabled:
+      cached.autoScrollEnabled === true
+        ? true
+        : parseAutoScrollEnabled(initialPrefs.auto_scroll_enabled ?? cached.autoScrollEnabled),
+  };
+}
+
+function preferenceUpsertRow(
+  userId: string,
+  prefs: CachedPreferences,
+  extra: { spouse_prayer_selection: SpousePrayerSelection; time_zone: string },
+) {
+  return {
+    user_id: userId,
+    theme: prefs.theme,
+    font_size: prefs.fontSize,
+    line_height: prefs.lineHeight,
+    auto_scroll_speed: prefs.autoScrollSpeed,
+    auto_scroll_enabled: prefs.autoScrollEnabled,
+    spouse_prayer_selection: extra.spouse_prayer_selection,
+    time_zone: extra.time_zone,
   };
 }
 
@@ -109,7 +131,9 @@ export function AppProviders({
       window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
     };
-  }, [initialPrefs, initialSpouseSelection, initialDailySummary, initialTimeZone]);
+    // Keep the first client snapshot. Later layout refetches must not turn auto-scroll back off.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const persistTimeZone = useCallback(async (nextZone: string) => {
     if (!hasPublicEnv() || !navigator.onLine) return;
@@ -118,15 +142,12 @@ export function AppProviders({
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
-    const { error } = await supabase.from("user_preferences").upsert({
-      user_id: user.id,
-      theme: prefs.theme,
-      font_size: prefs.fontSize,
-      line_height: prefs.lineHeight,
-      auto_scroll_speed: prefs.autoScrollSpeed,
-      spouse_prayer_selection: spouseSelection,
-      time_zone: nextZone,
-    });
+    const { error } = await supabase.from("user_preferences").upsert(
+      preferenceUpsertRow(user.id, prefs, {
+        spouse_prayer_selection: spouseSelection,
+        time_zone: nextZone,
+      }),
+    );
     if (error) {
       await supabase.from("user_preferences").upsert({
         user_id: user.id,
@@ -242,15 +263,12 @@ export function AppProviders({
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
-    const { error } = await supabase.from("user_preferences").upsert({
-      user_id: user.id,
-      theme: next.theme,
-      font_size: next.fontSize,
-      line_height: next.lineHeight,
-      auto_scroll_speed: next.autoScrollSpeed,
-      spouse_prayer_selection: spouseSelection,
-      time_zone: timeZoneRef.current,
-    });
+    const { error } = await supabase.from("user_preferences").upsert(
+      preferenceUpsertRow(user.id, next, {
+        spouse_prayer_selection: spouseSelection,
+        time_zone: timeZoneRef.current,
+      }),
+    );
     if (error) {
       await supabase.from("user_preferences").upsert({
         user_id: user.id,
@@ -270,15 +288,12 @@ export function AppProviders({
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
-    const { error } = await supabase.from("user_preferences").upsert({
-      user_id: user.id,
-      theme: prefs.theme,
-      font_size: prefs.fontSize,
-      line_height: prefs.lineHeight,
-      auto_scroll_speed: prefs.autoScrollSpeed,
-      spouse_prayer_selection: value,
-      time_zone: timeZoneRef.current,
-    });
+    const { error } = await supabase.from("user_preferences").upsert(
+      preferenceUpsertRow(user.id, prefs, {
+        spouse_prayer_selection: value,
+        time_zone: timeZoneRef.current,
+      }),
+    );
     if (error) {
       setSpouseSelection(previous);
       throw error;

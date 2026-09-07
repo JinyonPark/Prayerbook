@@ -93,7 +93,7 @@ test("주간·야간 모드에서 오늘의 기도 카드가 보인다", async (
   await page.addInitScript(() => {
     localStorage.setItem(
       "prayerbook-prefs",
-      JSON.stringify({ theme: "night", fontSize: "default", lineHeight: "comfortable", autoScrollSpeed: "normal" }),
+      JSON.stringify({ theme: "night", fontSize: "default", lineHeight: "comfortable", autoScrollSpeed: "normal", autoScrollEnabled: false }),
     );
   });
   await login(page);

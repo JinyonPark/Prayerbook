@@ -39,7 +39,7 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
     })),
     supabase
       .from("user_preferences")
-      .select("theme, font_size, line_height, spouse_prayer_selection, auto_scroll_speed, time_zone")
+      .select("theme, font_size, line_height, spouse_prayer_selection, auto_scroll_speed, auto_scroll_enabled, time_zone")
       .eq("user_id", user.id)
       .maybeSingle(),
     supabase
@@ -52,9 +52,17 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
     fetchDailyPrayerSummary(supabase).catch(() => emptyDailySummary()),
   ]);
 
-  const prefsResult = prefsResultRaw.error
-    ? await supabase.from("user_preferences").select("theme, font_size, line_height").eq("user_id", user.id).maybeSingle()
-    : prefsResultRaw;
+  let prefsResult = prefsResultRaw;
+  if (prefsResult.error) {
+    prefsResult = await supabase
+      .from("user_preferences")
+      .select("theme, font_size, line_height, spouse_prayer_selection, auto_scroll_speed, time_zone")
+      .eq("user_id", user.id)
+      .maybeSingle();
+  }
+  if (prefsResult.error) {
+    prefsResult = await supabase.from("user_preferences").select("theme, font_size, line_height").eq("user_id", user.id).maybeSingle();
+  }
   const readingResult = readingResultRaw.error
     ? await supabase
         .from("user_reading_state")
@@ -64,7 +72,12 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
     : readingResultRaw;
   const inputResult = inputResultRaw.error ? { data: [] } : inputResultRaw;
 
-  const prefs = prefsResult.data as (UserPreferences & { spouse_prayer_selection?: string | null; auto_scroll_speed?: string; time_zone?: string }) | null;
+  const prefs = prefsResult.data as (UserPreferences & {
+    spouse_prayer_selection?: string | null;
+    auto_scroll_speed?: string;
+    auto_scroll_enabled?: boolean;
+    time_zone?: string;
+  }) | null;
   const timeZone = normalizeTimeZone(prefs?.time_zone ?? DEFAULT_TIME_ZONE);
 
   return (

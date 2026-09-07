@@ -63,6 +63,50 @@ export function SettingsView() {
             ))}
           </div>
         </fieldset>
+        <fieldset className="mt-4">
+          <legend className="mb-2 text-sm text-[var(--muted)]">자동 스크롤</legend>
+          <p className="mb-2 text-sm text-[var(--muted)]">켜면 기도문을 열 때 본문이 아래로 내려갑니다. 직접 스크롤하면 잠시 멈춘 뒤 이어집니다.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant={!prefs.autoScrollEnabled ? "primary" : "secondary"}
+              aria-pressed={!prefs.autoScrollEnabled}
+              onClick={() => void updatePrefs({ autoScrollEnabled: false })}
+            >
+              꺼짐
+            </Button>
+            <Button
+              type="button"
+              data-testid="auto-scroll-on"
+              variant={prefs.autoScrollEnabled ? "primary" : "secondary"}
+              aria-pressed={prefs.autoScrollEnabled}
+              onClick={() => void updatePrefs({ autoScrollEnabled: true })}
+            >
+              켜짐
+            </Button>
+          </div>
+        </fieldset>
+        {prefs.autoScrollEnabled ? (
+          <fieldset className="mt-4">
+            <legend className="mb-2 text-sm text-[var(--muted)]">자동 스크롤 속도</legend>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ["slow", "느리게"],
+                ["normal", "보통"],
+                ["fast", "빠르게"],
+              ] as const).map(([value, label]) => (
+                <Button
+                  key={value}
+                  variant={prefs.autoScrollSpeed === value ? "primary" : "secondary"}
+                  aria-pressed={prefs.autoScrollSpeed === value}
+                  onClick={() => void updatePrefs({ autoScrollSpeed: value })}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </fieldset>
+        ) : null}
       </section>
 
       <InstallCard />

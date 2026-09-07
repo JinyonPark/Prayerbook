@@ -4,6 +4,9 @@ export function nextAutoScrollPosition(
   pxPerSecond: number,
   elapsedMs: number,
 ): { y: number; finished: boolean } {
+  if (maxY <= 1) {
+    return { y: Math.max(0, currentY), finished: false };
+  }
   const nextY = currentY + (pxPerSecond * Math.max(0, elapsedMs)) / 1000;
   if (nextY >= maxY - 1) {
     return { y: Math.max(0, maxY), finished: true };

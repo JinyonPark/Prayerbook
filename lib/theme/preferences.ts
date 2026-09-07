@@ -6,6 +6,7 @@ export type CachedPreferences = {
   fontSize: "small" | "default" | "large" | "xlarge";
   lineHeight: "compact" | "comfortable" | "spacious";
   autoScrollSpeed: "slow" | "normal" | "fast";
+  autoScrollEnabled: boolean;
 };
 
 export const defaultPreferences: CachedPreferences = {
@@ -13,6 +14,7 @@ export const defaultPreferences: CachedPreferences = {
   fontSize: "default",
   lineHeight: "comfortable",
   autoScrollSpeed: "normal",
+  autoScrollEnabled: false,
 };
 
 export const DAY_STATUS_BAR = "#3f5c4b";
@@ -27,12 +29,19 @@ function parseAutoScrollSpeed(value: unknown): CachedPreferences["autoScrollSpee
   return "normal";
 }
 
+export function parseAutoScrollEnabled(value: unknown): boolean {
+  return value === true || value === "true";
+}
+
 export function readCachedPreferences(): CachedPreferences {
   if (typeof window === "undefined") return defaultPreferences;
   try {
     const raw = window.localStorage.getItem(PREFS_STORAGE_KEY);
     if (!raw) return defaultPreferences;
-    const parsed = JSON.parse(raw) as Partial<CachedPreferences> & { auto_scroll_speed?: string };
+    const parsed = JSON.parse(raw) as Partial<CachedPreferences> & {
+      auto_scroll_speed?: string;
+      auto_scroll_enabled?: boolean;
+    };
     return {
       theme: parsed.theme === "night" ? "night" : "day",
       fontSize: ["small", "default", "large", "xlarge"].includes(parsed.fontSize ?? "")
@@ -42,6 +51,7 @@ export function readCachedPreferences(): CachedPreferences {
         ? (parsed.lineHeight as CachedPreferences["lineHeight"])
         : "comfortable",
       autoScrollSpeed: parseAutoScrollSpeed(parsed.autoScrollSpeed ?? parsed.auto_scroll_speed),
+      autoScrollEnabled: parseAutoScrollEnabled(parsed.autoScrollEnabled ?? parsed.auto_scroll_enabled),
     };
   } catch {
     return defaultPreferences;
@@ -72,6 +82,9 @@ export function applyThemeColor(theme: CachedPreferences["theme"]) {
     document.head.appendChild(apple);
   }
   apple.setAttribute("content", "black-translucent");
+  if (typeof window !== "undefined" && Math.min(window.innerWidth, window.innerHeight) < 1024) {
+    document.documentElement.style.setProperty("--safe-top", "max(env(safe-area-inset-top, 0px), 48px)");
+  }
 }
 
 export function applyPreferences(prefs: CachedPreferences) {
@@ -110,5 +123,8 @@ export const THEME_INIT_SCRIPT = `(() => {
       document.head.appendChild(apple);
     }
     apple.setAttribute("content", "black-translucent");
+    if (Math.min(window.innerWidth, window.innerHeight) < 1024) {
+      root.style.setProperty("--safe-top", "max(env(safe-area-inset-top, 0px), 48px)");
+    }
   } catch (e) {}
 })();`;

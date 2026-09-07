@@ -14,7 +14,7 @@ const env = Object.fromEntries(
 );
 
 const ref = process.env.SUPABASE_PROJECT_REF || env.SUPABASE_PROJECT_REF;
-const token = process.env.SUPABASE_ACCESS_TOKEN;
+const token = process.env.SUPABASE_ACCESS_TOKEN || env.SUPABASE_ACCESS_TOKEN;
 if (!ref || !token) {
   console.error("Missing SUPABASE_PROJECT_REF or SUPABASE_ACCESS_TOKEN");
   process.exit(1);
