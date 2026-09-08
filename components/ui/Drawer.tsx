@@ -19,6 +19,10 @@ export function Drawer({ open, title, onClose, children }: Props) {
   const [listHeight, setListHeight] = useState(360);
   useVisualViewport();
 
+  function closeTableOfContents() {
+    onCloseRef.current();
+  }
+
   useEffect(() => {
     if (!open) return;
 
@@ -66,8 +70,8 @@ export function Drawer({ open, title, onClose, children }: Props) {
       <button
         type="button"
         aria-label="목차 닫기"
-        className="absolute inset-0 bg-[var(--overlay)]"
-        onClick={() => onCloseRef.current()}
+        className="absolute inset-0 z-0 bg-[var(--overlay)]"
+        onClick={closeTableOfContents}
       />
       <div
         role="dialog"
@@ -75,14 +79,21 @@ export function Drawer({ open, title, onClose, children }: Props) {
         aria-labelledby={headingId}
         className="absolute inset-x-0 bottom-0 z-10 flex w-full flex-col rounded-t-2xl bg-[var(--card)]"
       >
-        <div ref={headerRef} className="shrink-0 pt-3">
-          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[var(--border)]" />
+        <div ref={headerRef} className="relative z-20 shrink-0">
+          <button
+            type="button"
+            aria-label="목차 닫기"
+            onClick={closeTableOfContents}
+            className="bottom-sheet-handle-button"
+          >
+            <span className="bottom-sheet-handle-bar" aria-hidden="true" />
+          </button>
           <h2 id={headingId} className="px-4 pb-3 text-lg font-semibold">
             {title}
           </h2>
         </div>
         <div
-          className="drawer-scroll px-4 pb-[calc(1rem+var(--safe-bottom))]"
+          className="drawer-scroll relative z-0 px-4 pb-[calc(1rem+var(--safe-bottom))]"
           style={{
             height: listHeight,
             overflowY: "scroll",

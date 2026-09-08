@@ -99,6 +99,32 @@ test("하단 목차 이동은 기도 목록 페이지로 간다", async ({ page 
   await expect(page.getByRole("heading", { name: "기본 기도" })).toBeVisible();
 });
 
+test("목차 드래그 핸들을 누르면 목차가 닫히고 기도문 위치가 유지된다", async ({ page }) => {
+  test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await page.goto("/prayers/dawn");
+  await expect(page.getByRole("article")).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 240));
+  const before = await page.evaluate(() => window.scrollY);
+  const tocButton = page.getByRole("button", { name: "목차", exact: true });
+  await tocButton.click();
+  const dialog = page.getByRole("dialog", { name: "목차" });
+  await expect(dialog).toBeVisible();
+  const handle = dialog.getByRole("button", { name: "목차 닫기" });
+  await expect(handle).toBeVisible();
+  const box = await handle.boundingBox();
+  expect(box).toBeTruthy();
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await handle.click();
+  await expect(page.getByRole("dialog", { name: "목차" })).toHaveCount(0, { timeout: 15000 });
+  await expect(page.getByRole("article")).toBeVisible();
+  await expect(tocButton).toBeFocused();
+  const after = await page.evaluate(() => window.scrollY);
+  expect(Math.abs(after - before)).toBeLessThan(8);
+});
+
 test("목차 시트에서 현재 항목을 누르면 목차가 닫힌다", async ({ page }) => {
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await page.setViewportSize({ width: 390, height: 844 });

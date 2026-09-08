@@ -35,4 +35,22 @@ describe("기도문 네비게이션", () => {
     expect(drawer).not.toContain("stopPropagation");
     expect(reader).toContain("tocOpen ? \"max-lg:pointer-events-none\"");
   });
+
+  it("목차 드래그 핸들은 44px 닫기 버튼이다", () => {
+    const css = readFileSync(path.join(process.cwd(), "app/globals.css"), "utf8");
+    expect(drawer).toContain('type="button"');
+    expect(drawer).toContain("closeTableOfContents");
+    expect(drawer).toContain('className="bottom-sheet-handle-button"');
+    expect(drawer).toContain('className="bottom-sheet-handle-bar"');
+    expect(drawer).toContain('aria-hidden="true"');
+    expect(drawer).toContain("lastFocus.current?.focus()");
+    expect(drawer).toContain("lockBodyScroll");
+    expect(drawer).not.toMatch(/<div className="mx-auto mb-3 h-1 w-10 rounded-full/);
+    expect(css).toContain(".bottom-sheet-handle-button");
+    expect(css).toContain("min-width: 44px");
+    expect(css).toContain("min-height: 44px");
+    expect(css).toContain("pointer-events: auto");
+    expect(css).toContain(".bottom-sheet-handle-bar");
+    expect(css).toContain("pointer-events: none");
+  });
 });
