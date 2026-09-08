@@ -47,7 +47,7 @@ test("기도문 하단 버튼이 다른 요소에 가려지지 않는다", async
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await topHitIsButton(page, page.getByRole("button", { name: /기도 완료|한 번 더 완료 기록/ }).first());
   await topHitIsButton(page, page.getByRole("link", { name: "다음 기도" }));
-  await topHitIsButton(page, page.getByRole("button", { name: "목차 이동" }));
+  await topHitIsButton(page, page.getByRole("link", { name: "목차 이동" }));
 });
 
 for (const viewport of viewports) {
@@ -88,12 +88,26 @@ test("상단 뒤로·홈과 목차 항목이 실제 링크로 이동한다", asy
   await expect(page).toHaveURL(/\/prayers\/[^/]+/, { timeout: 15000 });
 });
 
-test("하단 목차 이동은 목차 시트를 연다", async ({ page }) => {
+test("하단 목차 이동은 기도 목록 페이지로 간다", async ({ page }) => {
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await page.goto("/prayers/dawn");
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  await page.getByRole("button", { name: "목차 이동" }).click();
-  await expect(page.getByRole("dialog", { name: "목차" })).toBeVisible();
+  await page.getByRole("link", { name: "목차 이동" }).click();
+  await expect(page).toHaveURL(/\/prayers\/?$/, { timeout: 15000 });
+  await expect(page.getByRole("heading", { name: "기본 기도" })).toBeVisible();
+});
+
+test("목차 시트에서 현재 항목을 누르면 목차가 닫힌다", async ({ page }) => {
+  test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await page.goto("/prayers/dawn");
+  await page.getByRole("button", { name: "목차", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "목차" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("link", { name: /1\.\s/ }).click();
+  await expect(page.getByRole("dialog", { name: "목차" })).toHaveCount(0, { timeout: 15000 });
+  await expect(page.getByRole("article")).toBeVisible();
 });

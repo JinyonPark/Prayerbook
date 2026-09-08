@@ -15,14 +15,12 @@ import {
   SHARE_FIELD_IDS,
   SHARE_FIELD_LABELS,
   SHARE_FAILURE_MESSAGE,
-  SHARE_SELECTION_CHANGED_MESSAGE,
   SHARE_TEXT_MAX_LENGTH,
   SHARE_RECORD_TITLE,
   applyShareFieldToggle,
   createShareDialogState,
   editShareText,
-  formatShareFieldLine,
-  keepEditedShareText,
+  formatShareFieldValue,
   rebuildShareTextFromSelection,
   refreshShareDialogStats,
   shareActionBlockMessage,
@@ -70,9 +68,7 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
   }
 
   function persistFormat(next: ShareDialogState) {
-    const saved = shareFormatFromState(next);
-    if (!saved) return;
-    void updateShareFormat(saved);
+    void updateShareFormat(shareFormatFromState(next));
   }
 
   function closeDialog(save: boolean) {
@@ -216,35 +212,17 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
                   />
                   <span>
                     <span className="font-medium">{SHARE_FIELD_LABELS[field]}</span>
-                    <span className="mt-0.5 block text-sm text-[var(--muted)]">{formatShareFieldLine(field, input)}</span>
+                    <span className="mt-0.5 block text-sm text-[var(--muted)]">{formatShareFieldValue(field, input)}</span>
                   </span>
                 </label>
               );
             })}
           </div>
         </fieldset>
-        {blockReason === "no_fields" ? (
+        {blockReason ? (
           <p className="mt-3 text-sm text-[var(--danger)]" role="alert">
             {blockMessage}
           </p>
-        ) : null}
-        {state.selectionChangedWhileDirty ? (
-          <div className="mt-4 rounded-xl border border-[var(--border)] p-3">
-            <p>{SHARE_SELECTION_CHANGED_MESSAGE}</p>
-            <div className="mt-2 flex flex-col gap-2 min-[360px]:flex-row">
-              <Button type="button" variant="secondary" className="min-h-11 flex-1" onClick={() => setState(keepEditedShareText)}>
-                현재 편집 문구 유지
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="min-h-11 flex-1"
-                onClick={() => setState((previous) => rebuildShareTextFromSelection(previous, input))}
-              >
-                선택 항목으로 다시 만들기
-              </Button>
-            </div>
-          </div>
         ) : null}
         <div className="mt-4">
           <label htmlFor={editorId} className="font-medium">
@@ -259,7 +237,7 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
             autoComplete="off"
             spellCheck={false}
             className="mt-2 w-full min-w-0 resize-y overflow-x-hidden whitespace-pre-wrap break-words rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-[var(--text)]"
-            onChange={(event) => setState((previous) => editShareText(previous, event.target.value))}
+            onChange={(event) => setState((previous) => editShareText(previous, event.target.value, input))}
           />
           <p className="mt-1 text-sm text-[var(--muted)]">
             {state.editedText.length} / {SHARE_TEXT_MAX_LENGTH}

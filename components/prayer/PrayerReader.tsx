@@ -566,11 +566,9 @@ export function PrayerReader({ prayer, prayers }: Props) {
               href={`/prayers/${item.slug}`}
               className={`block rounded-lg px-2 py-2 ${item.slug === prayer.slug ? "bg-[var(--bg)] font-semibold" : ""}`}
               onNavigate={() => {
-                if (item.slug === prayer.slug) {
-                  setTocOpen(false);
-                  return false;
-                }
                 rememberReading();
+                setTocOpen(false);
+                if (item.slug === prayer.slug) return false;
               }}
             >
               {item.item_number ? `${item.item_number}. ` : ""}
@@ -593,7 +591,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
           ref={chromeRef}
           className={`reader-chrome z-[200] border-b border-[var(--border)] bg-[var(--bg)] transition-transform duration-200 ease-out lg:sticky lg:top-[var(--header-h)] lg:-mx-5 lg:mb-4 lg:px-5 ${
             chromeVisible ? "translate-y-0" : "max-lg:pointer-events-none max-lg:-translate-y-full"
-          }`}
+          } ${tocOpen ? "max-lg:pointer-events-none" : ""}`}
         >
           <div className="mx-auto flex max-w-[760px] items-start gap-1 px-3 py-1 lg:px-0 lg:py-2">
             <p className="min-w-0 flex-1 break-keep font-semibold leading-snug">{numberedTitle}</p>
@@ -605,7 +603,13 @@ export function PrayerReader({ prayer, prayers }: Props) {
               >
                 홈
               </ReaderNavLink>
-              <Button variant="ghost" className="px-2 text-sm" aria-label="목차" onClick={() => setTocOpen(true)}>
+              <Button
+                variant="ghost"
+                className="px-2 text-sm"
+                aria-label="목차"
+                aria-expanded={tocOpen}
+                onClick={() => setTocOpen((open) => !open)}
+              >
                 목차
               </Button>
               <Button
@@ -747,16 +751,13 @@ export function PrayerReader({ prayer, prayers }: Props) {
             ) : (
               <span className="touch-target inline-flex items-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-[var(--muted)]">다음 기도</span>
             )}
-            <button
-              type="button"
+            <ReaderNavLink
+              href="/prayers"
               className="touch-target rounded-xl border border-[var(--border)] px-4 py-2.5 active:opacity-70"
-              onClick={() => {
-                cancelAutoStart();
-                setTocOpen(true);
-              }}
+              onNavigate={rememberReading}
             >
               목차 이동
-            </button>
+            </ReaderNavLink>
           </div>
         </div>
       </div>

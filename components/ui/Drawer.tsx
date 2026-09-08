@@ -55,7 +55,7 @@ export function Drawer({ open, title, onClose, children }: Props) {
 
   return (
     <div
-      className="fixed z-[300] lg:hidden"
+      className="fixed z-[400] lg:hidden"
       style={{
         top: "var(--visual-viewport-top, 0px)",
         height: "var(--visual-viewport-height, 100dvh)",
@@ -74,8 +74,6 @@ export function Drawer({ open, title, onClose, children }: Props) {
         aria-modal="true"
         aria-labelledby={headingId}
         className="absolute inset-x-0 bottom-0 z-10 flex w-full flex-col rounded-t-2xl bg-[var(--card)]"
-        onClick={(event) => event.stopPropagation()}
-        onPointerDown={(event) => event.stopPropagation()}
       >
         <div ref={headerRef} className="shrink-0 pt-3">
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[var(--border)]" />

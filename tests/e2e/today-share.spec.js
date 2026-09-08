@@ -197,18 +197,19 @@ test("연속 실행 흐름 C: 같은 팝업에서 복사와 공유", async ({ pa
   await expect(page.getByRole("dialog")).toHaveCount(1);
 });
 
-test("항목 선택 흐름 D: 선택 해제와 편집값 보호", async ({ page }) => {
+test("항목 선택 흐름 D: 체크를 빼면 숫자만 사라진다", async ({ page }) => {
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await login(page);
   await page.goto("/");
   await page.getByRole("button", { name: "오늘의 기도 복사 또는 공유" }).click();
   const dialog = page.getByRole("dialog", { name: "오늘의 기록" });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("오늘 기도 횟수").uncheck();
   const editor = dialog.getByLabel("편집할 문구");
-  await expect(editor).not.toHaveValue(/오늘 총 \d+회 기도했습니다/);
-  await editor.fill("직접 작성한 공유 문구");
-  await dialog.getByLabel("지금까지 누적 기도 횟수").uncheck();
-  await expect(dialog.getByText("공유할 기록 선택이 변경되었습니다.")).toBeVisible();
-  await expect(editor).toHaveValue("직접 작성한 공유 문구");
+  const before = await editor.inputValue();
+  await dialog.getByLabel("오늘 기도 횟수").uncheck();
+  const afterOff = await editor.inputValue();
+  expect(afterOff).toContain("오늘 총 회 기도했습니다.");
+  expect(afterOff).not.toMatch(/오늘 총 \d+회 기도했습니다/);
+  await dialog.getByLabel("오늘 기도 횟수").check();
+  await expect(editor).toHaveValue(before);
 });

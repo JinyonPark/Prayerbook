@@ -24,9 +24,10 @@ describe("복사·공유 공통 팝업", () => {
     expect(dialog).toContain("SHARE_DIALOG_TITLE");
     expect(dialog).toContain("copyTextToClipboard(state.editedText)");
     expect(dialog).toContain("text: state.editedText");
-    expect(dialog).toContain("updateShareFormat");
+    expect(dialog).toContain("formatShareFieldValue");
+    expect(dialog).not.toContain("formatShareFieldLine");
+    expect(dialog).not.toContain("selectionChangedWhileDirty");
     expect(dialog).not.toContain("openShareDialog(\"copy\")");
-    expect(dialog).not.toContain("현재 주요 동작은 복사입니다.");
   });
 
   it("중첩 Modal이나 두 번째 미리보기 팝업을 만들지 않는다", () => {
