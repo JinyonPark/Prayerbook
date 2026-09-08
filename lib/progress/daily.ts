@@ -67,6 +67,10 @@ export function emptyDailySummary(timeZone = DEFAULT_TIME_ZONE, localDate?: stri
   };
 }
 
+export function clearedDailySummaryForReset(previous: DailyPrayerSummary): DailyPrayerSummary {
+  return emptyDailySummary(previous.time_zone, previous.local_date || undefined);
+}
+
 export function normalizeDailySummary(value: unknown, fallbackTimeZone = DEFAULT_TIME_ZONE): DailyPrayerSummary {
   const row = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const items = Array.isArray(row.items)

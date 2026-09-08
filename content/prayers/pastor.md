@@ -7,7 +7,7 @@ category: main
 counts_toward_total: true
 display_order: 4
 source_url: "https://52-prayer-trainning-book.neocities.org/4_Pastor.html"
-content_version: 2
+content_version: 3
 is_active: true
 ---
 
@@ -31,5 +31,3 @@ is_active: true
 9) 하나님의 나라와 권세와 영광이 영원히, 영원히 하나님 아버지께 있사오며,
 
 10) 예수님의 이름으로 기도드립니다. 아멘.
-
-아멘

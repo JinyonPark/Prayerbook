@@ -14,6 +14,7 @@ import { MAIN_PRAYER_COUNT } from "@/lib/prayers/catalog";
 import { parseCountInput } from "@/lib/validation/count";
 import { mutateProgress } from "@/lib/progress/mutate-request";
 import { mapSummaryItems } from "@/lib/supabase/rpc";
+import { clearedDailySummaryForReset } from "@/lib/progress/daily";
 import { toUserMessage } from "@/lib/errors/user-message";
 import type { PrayerItemRecord } from "@/lib/prayers/markdown";
 import type { RpcMutationResult } from "@/lib/progress/types";
@@ -24,7 +25,7 @@ type EditState = {
 };
 
 export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
-  const { summary, setSummary, online, spouseSelection } = useAppState();
+  const { summary, setSummary, setDailySummary, refreshDaily, online, spouseSelection } = useAppState();
   const items = useMemo(() => (summary ? mapSummaryItems(summary) : []), [summary]);
   const current = calculateProgressFromItems(items, spouseSelection);
   const [edit, setEdit] = useState<EditState | null>(null);
@@ -54,12 +55,20 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
     afterSummary.currentRound === current.currentRound &&
     afterSummary.currentCompletedCount === current.currentCompletedCount;
 
-  async function run(task: () => Promise<RpcMutationResult>, successText: string) {
+  async function run(
+    task: () => Promise<RpcMutationResult>,
+    successText: string,
+    options?: { resetShareCounts?: boolean },
+  ) {
     setPending(true);
     setError(null);
     try {
       const data = await task();
       setSummary(data);
+      if (options?.resetShareCounts) {
+        setDailySummary(clearedDailySummaryForReset);
+      }
+      void refreshDaily();
       setResult(
         `${successText} Total ${data.current_total}독, ${data.current_round}독 진행 중 ${data.current_completed_count}/${current.eligibleCount}`,
       );
@@ -322,7 +331,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
       </Modal>
 
       <Modal open={dialogs.all} title="모든 기도 기록 초기화" onClose={() => setDialogs((d) => ({ ...d, all: false }))} closeDisabled={pending}>
-        <p>기본 기도와 추가 기도 완료 횟수를 모두 0으로 변경합니다. 선택에서 제외된 배우자 기도도 포함됩니다. 계정과 읽기 설정은 유지됩니다.</p>
+        <p>기본 기도와 추가 기도 완료 횟수, 오늘 기도 횟수, 지금까지 누적 기도 횟수를 모두 0으로 변경합니다. 선택에서 제외된 배우자 기도도 포함됩니다. 계정과 읽기 설정은 유지됩니다.</p>
         <p className="mt-3 text-sm">확인을 위해 모든 기록 초기화를 입력하세요.</p>
         <input className="touch-target mt-2 w-full rounded-xl border border-[var(--border)] px-3" value={allConfirm} onChange={(e) => setAllConfirm(e.target.value)} />
         <div className="mt-4 flex gap-2">
@@ -333,7 +342,11 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
             variant="danger"
             disabled={pending || allConfirm !== "모든 기록 초기화"}
             onClick={async () => {
-              const saved = await run(() => mutateProgress({ op: "reset_all", clientEventId: clientEventId() }), "초기화했습니다.");
+              const saved = await run(
+                () => mutateProgress({ op: "reset_all", clientEventId: clientEventId() }),
+                "초기화했습니다.",
+                { resetShareCounts: true },
+              );
               if (!saved) return;
               setAllConfirm("");
               setDialogs((d) => ({ ...d, all: false }));

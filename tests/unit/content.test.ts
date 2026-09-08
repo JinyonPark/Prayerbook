@@ -96,6 +96,8 @@ describe("기도문 콘텐츠", () => {
     expect(bySlug.dawn).toContain("여러 가지");
     expect(bySlug.church).toContain("시험당하지");
     expect(bySlug.pastor).toContain("시험당함을 허락지");
+    expect(bySlug.pastor.match(/아멘/g)?.length).toBe(1);
+    expect(bySlug.pastor).not.toMatch(/아멘\.\s+아멘/);
     expect(bySlug.home).toContain("시험당함을 허락지");
     expect(bySlug.husband).toContain("있는 줄");
     expect(bySlug.wife).toContain("있는 줄");

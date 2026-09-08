@@ -6,7 +6,7 @@ describe("service worker", () => {
   const sw = readFileSync(path.join(process.cwd(), "public/sw.js"), "utf8");
 
   it("Next 라우터 RSC 요청은 가로채지 않는다", () => {
-    expect(sw).toContain("prayer-book-v25");
+    expect(sw).toContain("prayer-book-v26");
     expect(sw).toContain("isNextRouterRequest");
     expect(sw).toContain('searchParams.has("_rsc")');
     expect(sw).toContain('headers.has("RSC")');
@@ -26,9 +26,11 @@ describe("상태 표시줄 여백", () => {
     expect(css).not.toContain("max(var(--safe-top-env), 48px)");
   });
 
-  it("기도문 상단 메뉴는 상태 표시줄 위에 두고 이중 여백을 넣지 않는다", () => {
+  it("기도문 상단 메뉴는 상태 표시줄 아래로 내리고 이중 여백을 넣지 않는다", () => {
     expect(css).toContain("position: fixed");
     expect(css).toContain(".reader-chrome-spacer");
+    expect(css).toContain("padding-top: var(--safe-top-env)");
+    expect(css).toContain("html[data-reader=\"true\"] .app-header");
     expect(css).not.toContain("height: calc(3.25rem + var(--safe-top))");
   });
 });

@@ -589,7 +589,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
       <div>
         <div
           ref={chromeRef}
-          className={`reader-chrome z-[200] border-b border-[var(--border)] bg-[var(--bg)] transition-transform duration-200 ease-out lg:sticky lg:top-[var(--header-h)] lg:-mx-5 lg:mb-4 lg:px-5 ${
+          className={`reader-chrome z-[200] border-b border-[var(--border)] bg-[var(--bg)] transition-transform duration-200 ease-out lg:sticky lg:top-[calc(var(--header-h)+var(--safe-top-env))] lg:-mx-5 lg:mb-4 lg:px-5 ${
             chromeVisible ? "translate-y-0" : "max-lg:pointer-events-none max-lg:-translate-y-full"
           } ${tocOpen ? "max-lg:pointer-events-none" : ""}`}
         >

@@ -111,6 +111,10 @@ html[data-reader="true"] body::before {
   display: none;
 }
 
+html[data-reader="true"] .app-header {
+  padding-top: var(--safe-top-env);
+}
+
 @media (display-mode: standalone), (display-mode: fullscreen) {
   :root {
     --safe-top: var(--safe-top-env);
@@ -215,6 +219,7 @@ svg {
     top: 0;
     left: 0;
     right: 0;
+    padding-top: var(--safe-top-env);
   }
 
   .reader-article {

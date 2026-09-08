@@ -18,6 +18,7 @@ import {
 } from "@/lib/progress/share-content";
 import {
   applySuccessfulCompleteToDaily,
+  clearedDailySummaryForReset,
   emptyDailySummary,
   formatDailyCopyText,
   formatDailyPreviewText,
@@ -339,5 +340,21 @@ describe("완료 후 홈 캐시", () => {
     expect(formatDailyPreviewText(summary, progress)).toBe(formatDailyCopyText(summary, progress));
     expect(formatDailyCopyText(summary, progress)).not.toContain("새벽 기도");
     expect(formatDailyCopyText(summary, progress)).not.toContain("http");
+  });
+});
+
+describe("모든 기록 초기화와 공유 횟수", () => {
+  it("오늘 횟수와 누적 횟수를 함께 0으로 만든다", () => {
+    const previous = applySuccessfulCompleteToDaily(emptyDailySummary("Asia/Seoul", "2026-09-09"), {
+      prayerItemId: "m1",
+      prayerTitle: "새벽 기도",
+      itemNumber: 1,
+      category: "main",
+    });
+    const next = clearedDailySummaryForReset(previous);
+    expect(next.local_date).toBe("2026-09-09");
+    expect(next.total_completion_count).toBe(0);
+    expect(next.lifetime_completion_count).toBe(0);
+    expect(next.items).toEqual([]);
   });
 });
