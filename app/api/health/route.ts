@@ -10,20 +10,27 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch(`${url.replace(/\/$/, "")}/rest/v1/prayer_items?select=id&limit=1`, {
+    const base = url.replace(/\/$/, "");
+    const authHealth = await fetch(`${base}/auth/v1/health`, {
+      headers: { apikey: key },
+      cache: "no-store",
+    });
+    const rest = await fetch(`${base}/rest/v1/prayer_items?select=id&limit=1`, {
       headers: {
         apikey: key,
         Authorization: `Bearer ${key}`,
       },
       cache: "no-store",
     });
+    const reachable = authHealth.ok || rest.status > 0;
     return NextResponse.json(
       {
-        ok: response.ok,
+        ok: reachable,
         env: true,
-        supabase: response.ok ? "ok" : `http-${response.status}`,
+        supabase: authHealth.ok ? "ok" : `auth-${authHealth.status}`,
+        rest: rest.ok ? "ok" : `http-${rest.status}`,
       },
-      { status: response.ok ? 200 : 503 },
+      { status: reachable ? 200 : 503 },
     );
   } catch {
     return NextResponse.json({ ok: false, env: true, supabase: "unreachable" }, { status: 503 });

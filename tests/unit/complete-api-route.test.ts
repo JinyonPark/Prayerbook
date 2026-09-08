@@ -12,6 +12,7 @@ describe("완료 API와 서버 점검", () => {
 
   it("헬스 체크는 익명 키로 prayer_items를 조회한다", () => {
     const source = readFileSync(path.join(process.cwd(), "app/api/health/route.ts"), "utf8");
+    expect(source).toContain("/auth/v1/health");
     expect(source).toContain("prayer_items?select=id&limit=1");
     expect(source).toContain("missing-env");
   });
