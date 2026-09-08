@@ -43,4 +43,9 @@ describe("문장 분리", () => {
     const content = parseMarkdownDocument(raw).content;
     expect(content).not.toMatch(/\n{4,}/);
   });
+
+  it("26번 명령 안내가 한 문장으로 유지된다", () => {
+    const parts = splitSentences("<명령하십시오>");
+    expect(parts).toEqual(["<명령하십시오>"]);
+  });
 });

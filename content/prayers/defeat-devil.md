@@ -7,7 +7,7 @@ category: main
 counts_toward_total: true
 display_order: 26
 source_url: "local://26-defeat-devil.txt"
-content_version: 1
+content_version: 2
 is_active: true
 ---
 
@@ -39,7 +39,7 @@ is_active: true
 (약 4:7) "그런즉 너희는 하나님께 복종할지어다. 마귀를 대적하라. 그리하면 너희를 피하리라."라고 말씀하셨습니다.
 이 말씀을 믿고 기도합니다.
 
-<명령하십시오.>
+<명령하십시오>
 '마귀와 악령과 귀신은 내 몸속에서 나가라! 나는 하나님을 믿는다. 더러운 귀신아! 내 몸속에서 나가라!' (반복)
 
 '나는 이제부터 하나님의 자녀요, 백성이다. 그러니 내 몸속에서 나가라!' (반복)

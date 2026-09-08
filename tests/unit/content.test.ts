@@ -117,6 +117,8 @@ describe("기도문 콘텐츠", () => {
     expect(bySlug.temptations).toContain("찾지 못하게");
     expect(bySlug.tired).toContain("내려놓기 원합니다");
     expect(bySlug.thanks).toContain("찾을 수 있는");
+    expect(bySlug["defeat-devil"]).toContain("<명령하십시오>");
+    expect(bySlug["defeat-devil"]).not.toContain("<명령하십시오.>");
     const ids = items.map((item) => item.id).sort();
     expect(new Set(ids).size).toBe(ids.length);
   });

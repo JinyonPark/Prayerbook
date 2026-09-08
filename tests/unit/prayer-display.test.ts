@@ -13,7 +13,7 @@ describe("기도문 번호 표시", () => {
   });
 
   it("본문의 꺾쇠 안내 문구가 사라지지 않는다", () => {
-    const prepared = preparePrayerMarkdown("<명령하십시오.>");
-    expect(prepared).toBe("&lt;명령하십시오.&gt;");
+    const prepared = preparePrayerMarkdown("<명령하십시오>");
+    expect(prepared).toBe("&lt;명령하십시오&gt;");
   });
 });
