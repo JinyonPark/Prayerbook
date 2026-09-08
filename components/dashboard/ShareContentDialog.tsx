@@ -16,7 +16,6 @@ import {
   SHARE_FIELD_LABELS,
   SHARE_FAILURE_MESSAGE,
   SHARE_TEXT_MAX_LENGTH,
-  SHARE_RECORD_TITLE,
   applyShareFieldToggle,
   createShareDialogState,
   editShareText,
@@ -43,6 +42,7 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
   const liveId = useId();
   const openButtonRef = useRef<HTMLButtonElement>(null);
   const copyActionRef = useRef<HTMLButtonElement>(null);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
   const busy = useRef(false);
   const openRef = useRef(false);
   const input = useMemo(
@@ -71,6 +71,12 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
     void updateShareFormat(shareFormatFromState(next));
   }
 
+  function stateWithLiveEditedText(): ShareDialogState {
+    const live = editorRef.current?.value;
+    if (live == null || live === state.editedText) return state;
+    return editShareText(state, live, input);
+  }
+
   function closeDialog(save: boolean) {
     if (save) persistFormat(state);
     setOpen(false);
@@ -91,16 +97,20 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
 
   async function onCopy() {
     if (busy.current) return;
-    const blocked = shareActionBlockMessage(shareActionBlockReason(state.selected, state.editedText));
+    const next = stateWithLiveEditedText();
+    const blocked = shareActionBlockMessage(shareActionBlockReason(next.selected, next.editedText));
     if (blocked) {
       showNotice(blocked, "error");
       return;
     }
     busy.current = true;
     try {
-      const ok = await copyTextToClipboard(state.editedText);
+      const ok = await copyTextToClipboard(next.editedText);
       showNotice(ok ? COPY_SUCCESS_MESSAGE : COPY_FAILURE_MESSAGE, ok ? "success" : "error");
-      if (ok) persistFormat(state);
+      if (ok) {
+        setState(next);
+        persistFormat(next);
+      }
     } finally {
       busy.current = false;
     }
@@ -108,19 +118,18 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
 
   async function onShare() {
     if (busy.current) return;
-    const blocked = shareActionBlockMessage(shareActionBlockReason(state.selected, state.editedText));
+    const next = stateWithLiveEditedText();
+    const blocked = shareActionBlockMessage(shareActionBlockReason(next.selected, next.editedText));
     if (blocked) {
       showNotice(blocked, "error");
       return;
     }
     busy.current = true;
     try {
-      const result = await shareOrCopyText({
-        title: SHARE_RECORD_TITLE,
-        text: state.editedText,
-      });
+      const result = await shareOrCopyText({ text: next.editedText });
       if (result === "cancelled") return;
-      persistFormat(state);
+      setState(next);
+      persistFormat(next);
       if (result === "shared") {
         closeDialog(false);
         return;
@@ -230,6 +239,7 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
           </label>
           <textarea
             id={editorId}
+            ref={editorRef}
             value={state.editedText}
             maxLength={SHARE_TEXT_MAX_LENGTH}
             rows={8}

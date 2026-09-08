@@ -8,7 +8,7 @@ import {
   shareTextContainsForbiddenPersonalData,
   type DailyPrayerSummary,
 } from "@/lib/progress/daily";
-import { copyTextToClipboard, isAbortError, shareOrCopyText } from "@/lib/progress/clipboard";
+import { copyTextToClipboard, isAbortError, shareOrCopyText, webShareDataFromEditedText } from "@/lib/progress/clipboard";
 
 const summary: DailyPrayerSummary = {
   local_date: "2026-09-07",
@@ -112,6 +112,12 @@ describe("Clipboard 및 Web Share", () => {
     vi.restoreAllMocks();
   });
 
+  it("공유 데이터는 편집 문구 텍스트만 담는다", () => {
+    expect(webShareDataFromEditedText(editedText)).toEqual({ text: editedText });
+    expect(webShareDataFromEditedText(editedText)).not.toHaveProperty("title");
+    expect(webShareDataFromEditedText(editedText)).not.toHaveProperty("url");
+  });
+
   it("Clipboard API 성공 시 editedText를 그대로 전달한다", async () => {
     await expect(copyTextToClipboard(editedText)).resolves.toBe(true);
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(editedText);
@@ -124,14 +130,12 @@ describe("Clipboard 및 Web Share", () => {
     expect(document.execCommand).toHaveBeenCalledWith("copy");
   });
 
-  it("navigator.share 지원 환경에서 title과 editedText만 전달하고 URL은 넣지 않는다", async () => {
+  it("navigator.share는 편집 문구만 넘기고 제목과 URL은 넣지 않는다", async () => {
     const share = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "share", { configurable: true, value: share });
     await expect(shareOrCopyText({ title: DAILY_SHARE_TITLE, text: editedText })).resolves.toBe("shared");
-    expect(share).toHaveBeenCalledWith({
-      title: DAILY_SHARE_TITLE,
-      text: editedText,
-    });
+    expect(share).toHaveBeenCalledWith({ text: editedText });
+    expect(share.mock.calls[0][0].title).toBeUndefined();
     expect(share.mock.calls[0][0].url).toBeUndefined();
   });
 

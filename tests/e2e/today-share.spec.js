@@ -175,8 +175,8 @@ test("복사·공유 흐름 B: 같은 팝업에서 공유, URL 없음", async ({
   await dialog.getByLabel("편집할 문구").fill("오늘 16회 기도했습니다.");
   await dialog.getByRole("button", { name: "공유" }).click();
   const payload = await page.evaluate(() => window.__shareCalls.at(-1));
-  expect(payload.title).toBe("기도훈련집 오늘의 기록");
   expect(payload.text).toBe("오늘 16회 기도했습니다.");
+  expect(payload.title).toBeUndefined();
   expect(payload.url).toBeUndefined();
 });
 

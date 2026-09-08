@@ -22,8 +22,9 @@ describe("복사·공유 공통 팝업", () => {
 
   it("같은 팝업에서 복사와 공유를 모두 실행한다", () => {
     expect(dialog).toContain("SHARE_DIALOG_TITLE");
-    expect(dialog).toContain("copyTextToClipboard(state.editedText)");
-    expect(dialog).toContain("text: state.editedText");
+    expect(dialog).toContain("copyTextToClipboard(next.editedText)");
+    expect(dialog).toContain("shareOrCopyText({ text: next.editedText })");
+    expect(dialog).not.toContain("SHARE_RECORD_TITLE");
     expect(dialog).toContain("formatShareFieldValue");
     expect(dialog).not.toContain("formatShareFieldLine");
     expect(dialog).not.toContain("selectionChangedWhileDirty");

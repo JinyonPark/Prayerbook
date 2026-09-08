@@ -45,18 +45,22 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
 
 export type ShareOutcome = "shared" | "copied" | "cancelled" | "failed";
 
+export function webShareDataFromEditedText(text: string): ShareData {
+  return { text };
+}
+
 export async function shareOrCopyText(payload: {
-  title: string;
   text: string;
+  title?: string;
   url?: string;
 }): Promise<ShareOutcome> {
+  const data = webShareDataFromEditedText(payload.text);
   if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
     try {
-      const data: ShareData = {
-        title: payload.title,
-        text: payload.text,
-      };
-      if (payload.url) data.url = payload.url;
+      if (typeof navigator.canShare === "function" && !navigator.canShare(data)) {
+        const copied = await copyTextToClipboard(payload.text);
+        return copied ? "copied" : "failed";
+      }
       await navigator.share(data);
       return "shared";
     } catch (error) {
