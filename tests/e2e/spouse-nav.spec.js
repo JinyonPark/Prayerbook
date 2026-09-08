@@ -21,6 +21,8 @@ test("아내 선택 시 다음 기도가 남편 기도를 건너뛴다", async (
   await expect(page).toHaveURL(/\/prayers\/wife/);
   await expect(page).not.toHaveURL(/\/prayers\/husband/);
 });
+
+test("남편 선택 시 다음 기도가 아내 기도를 건너뛴다", async ({ page }) => {
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await login(page);
   await page.goto("/settings");

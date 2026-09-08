@@ -1,15 +1,21 @@
 import {
   DEFAULT_TIME_ZONE,
-  formatKoreanDate,
   isInstantInLocalDate,
   localDateString,
   normalizeTimeZone,
 } from "@/lib/progress/timezone";
 import { PRODUCTION_ORIGIN } from "@/lib/auth/site-url";
+import {
+  DEFAULT_SHARE_SELECTION,
+  SHARE_RECORD_TITLE,
+  formatShareRecordText,
+  type ShareFieldSelection,
+  type ShareRecordInput,
+} from "@/lib/progress/share-content";
 
 export const APP_PUBLIC_URL = `${PRODUCTION_ORIGIN}/`;
 export const APP_DISPLAY_NAME = "기도훈련집";
-export const DAILY_SHARE_TITLE = "기도훈련집 오늘의 기록";
+export const DAILY_SHARE_TITLE = SHARE_RECORD_TITLE;
 
 export type DailyPrayerItemSummary = {
   prayer_item_id: string;
@@ -26,6 +32,7 @@ export type DailyPrayerSummary = {
   unique_prayer_count: number;
   main_prayer_completion_count: number;
   supplementary_prayer_completion_count: number;
+  lifetime_completion_count: number;
   items: DailyPrayerItemSummary[];
 };
 
@@ -55,6 +62,7 @@ export function emptyDailySummary(timeZone = DEFAULT_TIME_ZONE, localDate?: stri
     unique_prayer_count: 0,
     main_prayer_completion_count: 0,
     supplementary_prayer_completion_count: 0,
+    lifetime_completion_count: 0,
     items: [],
   };
 }
@@ -82,6 +90,7 @@ export function normalizeDailySummary(value: unknown, fallbackTimeZone = DEFAULT
     unique_prayer_count: Number(row.unique_prayer_count ?? items.length),
     main_prayer_completion_count: Number(row.main_prayer_completion_count ?? 0),
     supplementary_prayer_completion_count: Number(row.supplementary_prayer_completion_count ?? 0),
+    lifetime_completion_count: Math.max(0, Number(row.lifetime_completion_count ?? 0)),
     items,
   };
 }
@@ -93,10 +102,12 @@ export function summarizeDailyCompletions(
   const timeZone = normalizeTimeZone(options.timeZone);
   const localDate = options.localDate ?? localDateString(options.now ?? new Date(), timeZone);
   const seenEvents = new Set<string>();
+  const lifetimeEvents = new Set<string>();
   const grouped = new Map<string, DailyPrayerItemSummary & { display_order: number }>();
 
   for (const operation of operations) {
     if (operation.operation_type !== "complete") continue;
+    lifetimeEvents.add(operation.client_event_id);
     if (seenEvents.has(operation.client_event_id)) continue;
     if (!isInstantInLocalDate(operation.created_at, localDate, timeZone)) continue;
     seenEvents.add(operation.client_event_id);
@@ -130,6 +141,7 @@ export function summarizeDailyCompletions(
     unique_prayer_count: items.length,
     main_prayer_completion_count: mainCount,
     supplementary_prayer_completion_count: supplementaryCount,
+    lifetime_completion_count: lifetimeEvents.size,
     items: items.map((item) => ({
       prayer_item_id: item.prayer_item_id,
       prayer_title: item.prayer_title,
@@ -173,51 +185,54 @@ export function applySuccessfulCompleteToDaily(
       previous.main_prayer_completion_count + (input.category === "main" ? 1 : 0),
     supplementary_prayer_completion_count:
       previous.supplementary_prayer_completion_count + (input.category === "supplementary" ? 1 : 0),
+    lifetime_completion_count: previous.lifetime_completion_count + 1,
     items,
   };
 }
 
-export function formatDailyCopyText(summary: DailyPrayerSummary, progress: DailyShareProgress): string {
-  return [
-    DAILY_SHARE_TITLE,
-    "",
-    formatKoreanDate(summary.local_date),
-    `오늘 총 ${summary.total_completion_count}회 기도했습니다.`,
-    `완료한 기도 항목: ${summary.unique_prayer_count}개`,
-    "",
-    `Total ${progress.totalCompleted}독 완료`,
-    `${progress.currentRound}독 진행 중 ${progress.currentCompletedCount} / ${progress.eligibleCount}`,
-    "",
-    APP_DISPLAY_NAME,
-    APP_PUBLIC_URL,
-  ].join("\n");
+export function shareRecordInputFromDaily(
+  summary: DailyPrayerSummary,
+  progress: DailyShareProgress,
+): ShareRecordInput {
+  return {
+    localDate: summary.local_date,
+    todayCount: summary.total_completion_count,
+    lifetimeCount: summary.lifetime_completion_count,
+    totalCompleted: progress.totalCompleted,
+    currentRound: progress.currentRound,
+    currentCompletedCount: progress.currentCompletedCount,
+    eligibleCount: progress.eligibleCount,
+  };
 }
 
-export function formatDailyShareText(summary: DailyPrayerSummary, progress: DailyShareProgress): string {
-  return [
-    formatKoreanDate(summary.local_date),
-    `오늘 총 ${summary.total_completion_count}회 기도했습니다.`,
-    `Total ${progress.totalCompleted}독 완료`,
-    `${progress.currentRound}독 진행 중 ${progress.currentCompletedCount} / ${progress.eligibleCount}`,
-  ].join("\n");
+export function formatDailyCopyText(
+  summary: DailyPrayerSummary,
+  progress: DailyShareProgress,
+  selected: ShareFieldSelection = DEFAULT_SHARE_SELECTION,
+): string {
+  return formatShareRecordText(shareRecordInputFromDaily(summary, progress), selected);
 }
 
-export function formatDailyPreviewText(summary: DailyPrayerSummary, progress: DailyShareProgress): string {
-  return [
-    DAILY_SHARE_TITLE,
-    "",
-    formatKoreanDate(summary.local_date),
-    `오늘 총 ${summary.total_completion_count}회 기도했습니다.`,
-    `Total ${progress.totalCompleted}독 완료`,
-    `${progress.currentRound}독 진행 중 ${progress.currentCompletedCount} / ${progress.eligibleCount}`,
-  ].join("\n");
+export function formatDailyShareText(
+  summary: DailyPrayerSummary,
+  progress: DailyShareProgress,
+  selected: ShareFieldSelection = DEFAULT_SHARE_SELECTION,
+): string {
+  return formatShareRecordText(shareRecordInputFromDaily(summary, progress), selected);
+}
+
+export function formatDailyPreviewText(
+  summary: DailyPrayerSummary,
+  progress: DailyShareProgress,
+  selected: ShareFieldSelection = DEFAULT_SHARE_SELECTION,
+): string {
+  return formatShareRecordText(shareRecordInputFromDaily(summary, progress), selected);
 }
 
 export function dailySharePayload(summary: DailyPrayerSummary, progress: DailyShareProgress) {
   return {
     title: DAILY_SHARE_TITLE,
-    text: formatDailyShareText(summary, progress),
-    url: APP_PUBLIC_URL,
+    text: formatShareRecordText(shareRecordInputFromDaily(summary, progress)),
   };
 }
 

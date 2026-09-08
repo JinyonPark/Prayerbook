@@ -119,6 +119,17 @@ describe("오늘 기도 횟수 집계", () => {
     ];
     const summary = summarizeDailyCompletions(operations, { timeZone: SEOUL, localDate: TODAY });
     expect(summary.total_completion_count).toBe(3);
+    expect(summary.lifetime_completion_count).toBe(3);
+  });
+
+  it("어제 완료는 오늘 횟수에 없고 누적 횟수에는 남는다", () => {
+    const operations = [
+      op({ client_event_id: "y", created_at: SEOUL_YESTERDAY_NIGHT, prayer_item_id: "a" }),
+      op({ client_event_id: "t", created_at: SEOUL_TODAY_MORNING, prayer_item_id: "a" }),
+    ];
+    const summary = summarizeDailyCompletions(operations, { timeZone: SEOUL, localDate: TODAY });
+    expect(summary.total_completion_count).toBe(1);
+    expect(summary.lifetime_completion_count).toBe(2);
   });
 
   it("동일 client_event_id 중복은 한 번만 계산한다", () => {
@@ -178,6 +189,7 @@ describe("오늘 기도 횟수 집계", () => {
     store.resetMain("a", crypto.randomUUID(), at);
     expect(store.summary("a").totalCompleted).toBe(0);
     expect(store.dailySummary("a", { timeZone: SEOUL, localDate: TODAY }).total_completion_count).toBe(5);
+    expect(store.dailySummary("a", { timeZone: SEOUL, localDate: TODAY }).lifetime_completion_count).toBe(5);
   });
 
   it("배우자 기도 선택 변경은 오늘 횟수를 바꾸지 않고 공유 진행률 분모만 바꾼다", () => {

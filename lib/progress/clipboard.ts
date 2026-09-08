@@ -48,21 +48,21 @@ export type ShareOutcome = "shared" | "copied" | "cancelled" | "failed";
 export async function shareOrCopyText(payload: {
   title: string;
   text: string;
-  url: string;
+  url?: string;
 }): Promise<ShareOutcome> {
-  const fallbackText = `${payload.title}\n\n${payload.text}\n\n${payload.url}`;
   if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
     try {
-      await navigator.share({
+      const data: ShareData = {
         title: payload.title,
         text: payload.text,
-        url: payload.url,
-      });
+      };
+      if (payload.url) data.url = payload.url;
+      await navigator.share(data);
       return "shared";
     } catch (error) {
       if (isAbortError(error)) return "cancelled";
     }
   }
-  const copied = await copyTextToClipboard(fallbackText);
+  const copied = await copyTextToClipboard(payload.text);
   return copied ? "copied" : "failed";
 }

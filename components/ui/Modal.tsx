@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
 import { lockBodyScroll, useVisualViewport } from "@/lib/pwa/visual-viewport";
 import { isKakaoInApp } from "@/lib/pwa/detect";
 
@@ -13,6 +13,7 @@ type Props = {
   closeDisabled?: boolean;
   variant?: "auto" | "center" | "sheet";
   descriptionId?: string;
+  initialFocusRef?: RefObject<HTMLElement | null>;
 };
 
 export function Modal({
@@ -24,6 +25,7 @@ export function Modal({
   closeDisabled = false,
   variant = "auto",
   descriptionId,
+  initialFocusRef,
 }: Props) {
   const headingId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -37,9 +39,12 @@ export function Modal({
     if (!open) return;
     lastFocus.current = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
-    const focusable = dialog?.querySelector<HTMLElement>(
-      'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
+    const focusable =
+      initialFocusRef?.current ??
+      dialog?.querySelector<HTMLElement>("[data-initial-focus]") ??
+      dialog?.querySelector<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
     focusable?.focus();
     const unlock = lockBodyScroll();
 
@@ -70,7 +75,7 @@ export function Modal({
       unlock();
       lastFocus.current?.focus();
     };
-  }, [open, closeDisabled]);
+  }, [open, closeDisabled, initialFocusRef]);
 
   if (!open) return null;
 

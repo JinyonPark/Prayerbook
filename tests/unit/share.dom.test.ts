@@ -1,6 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
-  APP_PUBLIC_URL,
   DAILY_SHARE_TITLE,
   dailySharePayload,
   formatDailyCopyText,
@@ -18,6 +17,7 @@ const summary: DailyPrayerSummary = {
   unique_prayer_count: 5,
   main_prayer_completion_count: 6,
   supplementary_prayer_completion_count: 1,
+  lifetime_completion_count: 79,
   items: [
     {
       prayer_item_id: "wish",
@@ -50,24 +50,26 @@ const personal = [
 ];
 
 describe("오늘 기록 복사 및 공유 텍스트", () => {
-  it("복사 텍스트에 날짜, 오늘 횟수, Total, 동적 진행률, URL을 포함한다", () => {
+  it("복사 텍스트에 날짜, 오늘 횟수, 누적, Total, 동적 진행률을 포함하고 URL은 넣지 않는다", () => {
     const text = formatDailyCopyText(summary, progress);
     expect(text).toContain(DAILY_SHARE_TITLE);
     expect(text).toContain("2026년 9월 7일");
     expect(text).toContain("오늘 총 7회 기도했습니다.");
-    expect(text).toContain("완료한 기도 항목: 5개");
+    expect(text).toContain("지금까지 총 79회 기도했습니다.");
     expect(text).toContain("Total 3독 완료");
     expect(text).toContain("4독 진행 중 8 / 26");
-    expect(text).toContain(APP_PUBLIC_URL);
+    expect(text).not.toContain("http");
     expect(text).not.toContain("/ 27");
+    expect(text).not.toContain("소원 기도");
   });
 
-  it("공유 텍스트에 title/url 분리용 본문만 넣고 항목 목록은 넣지 않는다", () => {
+  it("공유 payload는 편집 문구만 넣고 URL을 자동 추가하지 않는다", () => {
     const payload = dailySharePayload(summary, progress);
     expect(payload.title).toBe(DAILY_SHARE_TITLE);
-    expect(payload.url).toBe(APP_PUBLIC_URL);
+    expect(payload).not.toHaveProperty("url");
     expect(payload.text).toContain("2026년 9월 7일");
     expect(payload.text).toContain("오늘 총 7회 기도했습니다.");
+    expect(payload.text).toContain("지금까지 총 79회 기도했습니다.");
     expect(payload.text).toContain("Total 3독 완료");
     expect(payload.text).toContain("4독 진행 중 8 / 26");
     expect(payload.text).not.toContain("소원 기도");
@@ -92,6 +94,7 @@ describe("Clipboard 및 Web Share", () => {
   const originalClipboard = navigator.clipboard;
   const originalShare = navigator.share;
   const originalExec = document.execCommand;
+  const editedText = "오늘도 기도할 수 있어 감사합니다.\n오늘 16회 기도했습니다.";
 
   beforeEach(() => {
     Object.defineProperty(navigator, "clipboard", {
@@ -109,28 +112,27 @@ describe("Clipboard 및 Web Share", () => {
     vi.restoreAllMocks();
   });
 
-  it("Clipboard API 성공 시 true를 반환한다", async () => {
-    await expect(copyTextToClipboard("hello")).resolves.toBe(true);
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("hello");
+  it("Clipboard API 성공 시 editedText를 그대로 전달한다", async () => {
+    await expect(copyTextToClipboard(editedText)).resolves.toBe(true);
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(editedText);
   });
 
-  it("Clipboard API 실패 시 fallback execCommand를 수행한다", async () => {
+  it("Clipboard API 실패 시 fallback execCommand도 editedText를 사용한다", async () => {
     vi.mocked(navigator.clipboard.writeText).mockRejectedValue(new Error("denied"));
     document.execCommand = vi.fn().mockReturnValue(true);
-    await expect(copyTextToClipboard("hello")).resolves.toBe(true);
+    await expect(copyTextToClipboard(editedText)).resolves.toBe(true);
     expect(document.execCommand).toHaveBeenCalledWith("copy");
   });
 
-  it("navigator.share 지원 환경에서 올바른 payload를 전달한다", async () => {
+  it("navigator.share 지원 환경에서 title과 editedText만 전달하고 URL은 넣지 않는다", async () => {
     const share = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "share", { configurable: true, value: share });
-    const payload = dailySharePayload(summary, progress);
-    await expect(shareOrCopyText(payload)).resolves.toBe("shared");
+    await expect(shareOrCopyText({ title: DAILY_SHARE_TITLE, text: editedText })).resolves.toBe("shared");
     expect(share).toHaveBeenCalledWith({
-      title: payload.title,
-      text: payload.text,
-      url: payload.url,
+      title: DAILY_SHARE_TITLE,
+      text: editedText,
     });
+    expect(share.mock.calls[0][0].url).toBeUndefined();
   });
 
   it("사용자가 공유를 취소하면 오류로 처리하지 않는다", async () => {
@@ -139,7 +141,7 @@ describe("Clipboard 및 Web Share", () => {
       configurable: true,
       value: vi.fn().mockRejectedValue(abort),
     });
-    await expect(shareOrCopyText(dailySharePayload(summary, progress))).resolves.toBe("cancelled");
+    await expect(shareOrCopyText({ title: DAILY_SHARE_TITLE, text: editedText })).resolves.toBe("cancelled");
     expect(isAbortError(abort)).toBe(true);
   });
 
@@ -150,12 +152,13 @@ describe("Clipboard 및 Web Share", () => {
     });
     vi.mocked(navigator.clipboard.writeText).mockRejectedValue(new Error("denied"));
     document.execCommand = vi.fn().mockReturnValue(false);
-    await expect(shareOrCopyText(dailySharePayload(summary, progress))).resolves.toBe("failed");
+    await expect(shareOrCopyText({ title: DAILY_SHARE_TITLE, text: editedText })).resolves.toBe("failed");
   });
 
-  it("Web Share 미지원이면 복사 fallback을 사용한다", async () => {
+  it("Web Share 미지원이면 editedText 복사 fallback을 사용한다", async () => {
     Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
-    await expect(shareOrCopyText(dailySharePayload(summary, progress))).resolves.toBe("copied");
+    await expect(shareOrCopyText({ title: DAILY_SHARE_TITLE, text: editedText })).resolves.toBe("copied");
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(editedText);
   });
 
   it("카카오톡 인앱처럼 share가 던지더라도 앱이 멈추지 않고 복사한다", async () => {
@@ -163,6 +166,7 @@ describe("Clipboard 및 Web Share", () => {
       configurable: true,
       value: vi.fn().mockRejectedValue(new Error("not allowed")),
     });
-    await expect(shareOrCopyText(dailySharePayload(summary, progress))).resolves.toBe("copied");
+    await expect(shareOrCopyText({ title: DAILY_SHARE_TITLE, text: editedText })).resolves.toBe("copied");
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(editedText);
   });
 });
