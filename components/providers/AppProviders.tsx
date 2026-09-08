@@ -214,9 +214,10 @@ export function AppProviders({
 
   const syncDetectedTimeZone = useCallback(() => {
     const detected = detectBrowserTimeZone();
-    if (detected === timeZoneRef.current) return;
-    setTimeZone(detected);
-    void persistTimeZone(detected);
+    if (detected !== timeZoneRef.current) {
+      setTimeZone(detected);
+      void persistTimeZone(detected);
+    }
     void refreshDaily();
   }, [persistTimeZone, refreshDaily]);
 

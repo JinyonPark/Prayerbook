@@ -19,12 +19,15 @@ export function TodayPrayerCard({ startHref = "/prayers" }: Props) {
   };
   const count = dailySummary.total_completion_count;
   const unique = dailySummary.unique_prayer_count;
-  const empty = count === 0;
+  const loaded = Boolean(dailySummary.local_date);
+  const empty = loaded && count === 0;
 
   return (
     <section className="w-full max-w-xl rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 lg:max-w-md">
       <h2 className="text-lg font-semibold">오늘의 기도</h2>
-      {empty ? (
+      {!loaded ? (
+        <p className="mt-2 text-sm text-[var(--muted)]">오늘 기록을 불러오는 중</p>
+      ) : empty ? (
         <>
           <p className="mt-2 break-words">아직 완료한 기도가 없습니다.</p>
           <p className="mt-1 text-sm text-[var(--muted)]">기도를 완료하면 이곳에 기록됩니다.</p>

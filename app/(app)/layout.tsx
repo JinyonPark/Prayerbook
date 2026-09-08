@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { AppBootSkeleton } from "@/components/layout/AppBootSkeleton";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { fetchProgressSummary } from "@/lib/supabase/rpc";
+import { fetchDailyPrayerSummary, fetchProgressSummary } from "@/lib/supabase/rpc";
 import { hasPublicEnv } from "@/lib/validation/env";
 import type { ReadingState, UserPreferences } from "@/lib/progress/types";
 import { parseSpousePrayerSelection } from "@/lib/progress/spouse";
@@ -35,7 +35,7 @@ async function AppDataProviders({ children }: { children: React.ReactNode }) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [summaryResult, prefsResultRaw, readingResultRaw] = await Promise.all([
+  const [summaryResult, prefsResultRaw, readingResultRaw, dailyResult] = await Promise.all([
     fetchProgressSummary(supabase).catch(() => ({
       total_completed: 0,
       current_round: 1,
@@ -54,6 +54,7 @@ async function AppDataProviders({ children }: { children: React.ReactNode }) {
       .select("last_prayer_item_id, scroll_ratio, anchor_key, anchor_offset, last_opened_at, updated_at")
       .eq("user_id", user.id)
       .maybeSingle(),
+    fetchDailyPrayerSummary(supabase).catch(() => null),
   ]);
 
   const prefsFallback =
@@ -81,6 +82,7 @@ async function AppDataProviders({ children }: { children: React.ReactNode }) {
   return (
     <AppProviders
       initialSummary={summaryResult}
+      initialDailySummary={dailyResult}
       initialReading={(readingResult.data as ReadingState | null) ?? null}
       initialPrefs={prefs}
       initialSpouseSelection={parseSpousePrayerSelection(prefs?.spouse_prayer_selection)}
