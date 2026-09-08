@@ -101,7 +101,14 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
                 </p>
                 <p className="text-sm text-[var(--muted)]">현재 완료 횟수 {count}회</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variant="secondary" disabled={!online} onClick={() => setEdit({ item: prayer, value: String(count) })}>
+                  <Button
+                    variant="secondary"
+                    disabled={!online}
+                    onClick={() => {
+                      setError(null);
+                      setEdit({ item: prayer, value: String(count) });
+                    }}
+                  >
                     수정
                   </Button>
                   <Button variant="secondary" disabled={!online} onClick={() => setDialogs((d) => ({ ...d, resetItem: prayer }))}>

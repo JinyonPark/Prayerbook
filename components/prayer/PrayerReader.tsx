@@ -30,6 +30,7 @@ import {
   shouldIgnoreAutoScrollCancel,
   isManualScrollKey,
   nextAutoScrollPosition,
+  nextReaderChromeVisible,
   shouldStartAutoScroll,
 } from "@/lib/prayers/auto-scroll";
 
@@ -62,7 +63,9 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const [reachedEnd, setReachedEnd] = useState(false);
   const [inputEditorOpen, setInputEditorOpen] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [chromeVisible, setChromeVisible] = useState(true);
   const restored = useRef(false);
+  const lastChromeYRef = useRef(0);
   const autoEnteredAtRef = useRef(0);
   const lastOpenedAtRef = useRef(reading?.last_opened_at ?? null);
   const lastReadingRef = useRef(reading);
@@ -184,6 +187,8 @@ export function PrayerReader({ prayer, prayers }: Props) {
     completeEventId.current = null;
     setReachedEnd(false);
     setAutoRunning(false);
+    setChromeVisible(true);
+    lastChromeYRef.current = 0;
     setTocOpen(false);
     setStatus("idle");
     setError(null);
@@ -280,6 +285,19 @@ export function PrayerReader({ prayer, prayers }: Props) {
       window.removeEventListener("pagehide", saveNow);
       saveNow();
     };
+  }, [prayer.id]);
+
+  useEffect(() => {
+    lastChromeYRef.current = window.scrollY;
+    setChromeVisible(window.scrollY <= 12);
+    function onChromeScroll() {
+      const y = window.scrollY;
+      const deltaY = y - lastChromeYRef.current;
+      lastChromeYRef.current = y;
+      setChromeVisible((current) => nextReaderChromeVisible({ current, scrollY: y, deltaY }));
+    }
+    window.addEventListener("scroll", onChromeScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onChromeScroll);
   }, [prayer.id]);
 
   useEffect(() => {
@@ -512,17 +530,12 @@ export function PrayerReader({ prayer, prayers }: Props) {
       <aside className="reader-side rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">{toc}</aside>
       <div>
         <div
-          className="reader-chrome sticky top-0 z-[200] border-b border-[var(--border)] bg-[var(--bg)] lg:top-[var(--header-h)] lg:-mx-5 lg:mb-4 lg:px-5"
+          className={`reader-chrome sticky top-0 z-[200] border-b border-[var(--border)] bg-[var(--bg)] transition-transform duration-200 ease-out lg:top-[var(--header-h)] lg:-mx-5 lg:mb-4 lg:px-5 ${
+            chromeVisible ? "translate-y-0" : "pointer-events-none -translate-y-full lg:pointer-events-auto lg:translate-y-0"
+          }`}
         >
-          <div className="mx-auto flex max-w-[760px] items-center gap-1 px-3 py-1 lg:px-0 lg:py-2">
-            <ReaderNavLink
-              href="/prayers"
-              className="touch-target inline-flex shrink-0 items-center rounded-xl px-2 active:opacity-70"
-              onNavigate={rememberReading}
-            >
-              뒤로
-            </ReaderNavLink>
-            <p className="min-w-0 flex-1 truncate font-semibold">{numberedTitle}</p>
+          <div className="mx-auto flex max-w-[760px] items-start gap-1 px-3 py-1 lg:px-0 lg:py-2">
+            <p className="min-w-0 flex-1 break-keep font-semibold leading-snug">{numberedTitle}</p>
             <div className="ml-auto flex shrink-0 items-center">
               <ReaderNavLink
                 href="/"

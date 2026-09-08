@@ -59,3 +59,12 @@ describe("storage optimization migrations", () => {
     expect(inputs).toContain("revoke insert, update, delete on public.user_prayer_inputs");
   });
 });
+
+describe("횟수 수정 RPC 열 이름 충돌", () => {
+  it("set_prayer_count는 진행 테이블 열을 별칭으로 구분한다", () => {
+    const sql = readMigration("20240909000017_fix_set_count_ambiguous.sql");
+    expect(sql).toContain("upp.prayer_item_id = v_prayer_item_id");
+    expect(sql).toContain("#variable_conflict use_column");
+    expect(sql).not.toMatch(/delete from auth\.users/i);
+  });
+});

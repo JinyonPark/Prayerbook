@@ -33,6 +33,9 @@ export function toUserMessage(error: unknown): string {
 
   if (isNetworkFailure(error)) return NETWORK_USER_MESSAGE;
   if (isAuthFailure(error)) return AUTH_EXPIRED_USER_MESSAGE;
+  if (info.status === 503 || combined.includes("server_unavailable") || combined.includes("missing-env")) {
+    return SERVER_UNAVAILABLE_USER_MESSAGE;
+  }
   if (code.includes("INVALID_COUNT") || code.includes("22023")) {
     return "완료 횟수는 0 이상의 정수만 입력할 수 있습니다.";
   }

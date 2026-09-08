@@ -78,6 +78,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "PRAYER_NOT_FOUND" }, { status: 404 });
     }
     const info = inspectError(error);
+    console.error("progress mutation failed", info.code, info.message.slice(0, 180), info.status);
     return NextResponse.json(
       { error: info.code || "MUTATION_FAILED", message: info.message.slice(0, 180) },
       { status: info.status && info.status >= 400 ? info.status : 500 },

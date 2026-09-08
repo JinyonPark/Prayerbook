@@ -58,3 +58,20 @@ export function shouldStartAutoScroll(options: {
 export function hasAutoScrollDelayElapsed(elapsedMs: number, delayMs = AUTO_SCROLL_START_DELAY_MS): boolean {
   return elapsedMs >= delayMs;
 }
+
+export function nextReaderChromeVisible(options: {
+  current: boolean;
+  scrollY: number;
+  deltaY: number;
+  topThreshold?: number;
+  hideDelta?: number;
+  showDelta?: number;
+}): boolean {
+  const topThreshold = options.topThreshold ?? 12;
+  const hideDelta = options.hideDelta ?? 4;
+  const showDelta = options.showDelta ?? 4;
+  if (options.scrollY <= topThreshold) return true;
+  if (options.deltaY > hideDelta) return false;
+  if (options.deltaY < -showDelta) return true;
+  return options.current;
+}

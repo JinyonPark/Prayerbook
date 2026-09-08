@@ -6,6 +6,7 @@ import {
   remainingAutoScrollDelay,
   shouldIgnoreAutoScrollCancel,
   shouldStartAutoScroll,
+  nextReaderChromeVisible,
 } from "@/lib/prayers/auto-scroll";
 import { defaultPreferences, parseAutoScrollEnabled } from "@/lib/theme/preferences";
 
@@ -57,6 +58,13 @@ describe("자동 스크롤", () => {
     expect(remainingAutoScrollDelay(0, 1000)).toBe(0);
     expect(shouldIgnoreAutoScrollCancel(0, 200)).toBe(true);
     expect(shouldIgnoreAutoScrollCancel(0, 500)).toBe(false);
+  });
+
+  it("아래로 스크롤하면 메뉴를 숨기고 위로 스크롤하면 다시 보인다", () => {
+    expect(nextReaderChromeVisible({ current: true, scrollY: 80, deltaY: 20 })).toBe(false);
+    expect(nextReaderChromeVisible({ current: false, scrollY: 40, deltaY: -20 })).toBe(true);
+    expect(nextReaderChromeVisible({ current: false, scrollY: 4, deltaY: 20 })).toBe(true);
+    expect(nextReaderChromeVisible({ current: false, scrollY: 80, deltaY: 1 })).toBe(false);
   });
 
   it("위치 복원 전이나 수동 스크롤이면 시작하지 않는다", () => {
