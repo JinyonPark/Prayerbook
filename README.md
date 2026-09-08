@@ -96,6 +96,7 @@ npx supabase db push
 2. `supabase/migrations/20240904000002_rls.sql`
 3. `supabase/migrations/20240904000003_rpc_complete_and_edit.sql`
 4. `supabase/migrations/20240904000004_rpc_resets.sql`
+5. 이후 `supabase/migrations/`의 날짜순 파일 전부. 저장 구조 최적화는 `20240909000014`부터 `20240909000016`입니다.
 
 ## seed 적용
 
@@ -219,12 +220,23 @@ npm run generate:icons
 
 - `profiles` 사용자 프로필
 - `prayer_items` 기도문 카탈로그
-- `user_prayer_progress` 항목별 완료 횟수. 행이 없으면 0회
+- `user_prayer_progress` 항목별 완료 횟수. 행이 없으면 0회. 영구 보관
+- `user_daily_prayer_stats` 사용자당 하루 1행 기도 완료 집계. 최근 90일
+- `prayer_command_dedup` 요청 중복 방지. 최근 14일
 - `user_reading_state` 마지막 기도 항목과 `scroll_ratio`(0~1)
 - `user_preferences` 테마, 글자 크기, 줄 간격
-- `prayer_progress_operations` / `prayer_progress_operation_items` 변경 이력
+- `prayer_progress_operations` / `prayer_progress_operation_items` 횟수 수정·초기화 감사 이력. 최근 180일. 완료 버튼은 신규 저장하지 않음
+- `user_prayer_inputs` 이름·중보·소원 등 입력값. `save_prayer_inputs` RPC로만 저장
 
 완료 횟수 쓰기는 클라이언트 직접 update가 아니라 RPC만 사용합니다.
+
+보관 기간 정리는 스케줄이 연결되어 있지 않습니다. 관리자가 필요할 때 서비스 롤로 실행합니다.
+
+```bash
+npx tsx scripts/purge-prayer-storage.ts
+```
+
+이 스크립트는 `auth.uid()`가 없는 서비스 롤에서 `purge_prayer_storage()`를 호출합니다. 레거시 complete 이력은 삭제하지 않습니다. 검증 후 별도로 `purge_legacy_complete_operations()`를 실행해야 합니다.
 
 ## Total N독 계산 방식
 

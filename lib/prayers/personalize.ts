@@ -2,8 +2,10 @@ import {
   formatNameList,
   lastNameForParticle,
   sanitizePlainText,
+  type PrayerInputRow,
   type PrayerInputValues,
 } from "@/lib/prayers/inputs";
+import { PERSONALIZATION_ITEM_IDS } from "@/lib/prayers/known-ids";
 
 export type PersonalizationSlot = "name" | "intercession";
 
@@ -123,6 +125,34 @@ export function namesFor(rows: PersonalizationRow[], slug: string): Personalizat
 
 export function intercessionFor(rows: PersonalizationRow[], slug: string): PersonalizationRow | null {
   return rows.find((row) => row.prayer_slug === slug && row.slot_key === "intercession") ?? null;
+}
+
+export function personalizationRowsFromInputs(inputs: PrayerInputRow[]): PersonalizationRow[] {
+  const rows: PersonalizationRow[] = [];
+  for (const [slug, prayerItemId] of Object.entries(PERSONALIZATION_ITEM_IDS)) {
+    const values = inputs.find((row) => row.prayer_item_id === prayerItemId)?.values ?? {};
+    const names = slug === "children" ? values.child_names : values.names;
+    (names ?? []).forEach((name, index) => {
+      if (!name.trim()) return;
+      rows.push({
+        id: `${prayerItemId}:name:${index}`,
+        prayer_slug: slug,
+        slot_key: "name",
+        value: name,
+        sort_order: index,
+      });
+    });
+    if (values.intercession?.trim()) {
+      rows.push({
+        id: `${prayerItemId}:intercession`,
+        prayer_slug: slug,
+        slot_key: "intercession",
+        value: values.intercession,
+        sort_order: 0,
+      });
+    }
+  }
+  return rows;
 }
 
 export function hasBatchim(word: string): boolean {

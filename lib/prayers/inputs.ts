@@ -1,5 +1,7 @@
 export type PrayerInputValues = {
   child_names?: string[];
+  names?: string[];
+  intercession?: string;
   disease_target_name?: string;
   disease_name?: string;
   wish_text?: string;

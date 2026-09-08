@@ -1,10 +1,12 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { AppProviders } from "@/components/providers/AppProviders";
+import { AppBootSkeleton } from "@/components/layout/AppBootSkeleton";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fetchDailyPrayerSummary, fetchProgressSummary } from "@/lib/supabase/rpc";
 import { hasPublicEnv } from "@/lib/validation/env";
 import type { ReadingState, UserPreferences } from "@/lib/progress/types";
-import type { PersonalizationRow } from "@/lib/prayers/personalize";
+import { personalizationRowsFromInputs } from "@/lib/prayers/personalize";
 import type { PrayerInputRow } from "@/lib/prayers/inputs";
 import { parseSpousePrayerSelection } from "@/lib/progress/spouse";
 import { emptyDailySummary } from "@/lib/progress/daily";
@@ -22,13 +24,21 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
     );
   }
 
+  return (
+    <Suspense fallback={<AppBootSkeleton />}>
+      <AppDataProviders>{children}</AppDataProviders>
+    </Suspense>
+  );
+}
+
+async function AppDataProviders({ children }: { children: React.ReactNode }) {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [summaryResult, prefsResultRaw, readingResultRaw, personalizationResult, inputResultRaw, dailyResult] = await Promise.all([
+  const [summaryResult, prefsResultRaw, readingResultRaw, inputResultRaw, dailyResult] = await Promise.all([
     fetchProgressSummary(supabase).catch(() => ({
       total_completed: 0,
       current_round: 1,
@@ -47,7 +57,6 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
       .select("last_prayer_item_id, scroll_ratio, anchor_key, anchor_offset, last_opened_at, updated_at")
       .eq("user_id", user.id)
       .maybeSingle(),
-    supabase.from("user_prayer_personalizations").select("id, prayer_slug, slot_key, value, sort_order").order("sort_order"),
     supabase.from("user_prayer_inputs").select("prayer_item_id, values, updated_at"),
     fetchDailyPrayerSummary(supabase).catch(() => emptyDailySummary()),
   ]);
@@ -80,14 +89,16 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
   }) | null;
   const timeZone = normalizeTimeZone(prefs?.time_zone ?? DEFAULT_TIME_ZONE);
 
+  const prayerInputs = (inputResult.data as PrayerInputRow[] | null) ?? [];
+
   return (
     <AppProviders
       initialSummary={summaryResult}
       initialDailySummary={dailyResult}
       initialReading={(readingResult.data as ReadingState | null) ?? null}
       initialPrefs={prefs}
-      initialPersonalizations={(personalizationResult.data as PersonalizationRow[] | null) ?? []}
-      initialPrayerInputs={(inputResult.data as PrayerInputRow[] | null) ?? []}
+      initialPersonalizations={personalizationRowsFromInputs(prayerInputs)}
+      initialPrayerInputs={prayerInputs}
       initialSpouseSelection={parseSpousePrayerSelection(prefs?.spouse_prayer_selection)}
       initialTimeZone={timeZone}
     >

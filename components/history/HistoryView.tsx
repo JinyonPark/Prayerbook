@@ -21,7 +21,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export function HistoryView({ operations }: { operations: HistoryOperation[] }) {
-  const { online, refreshDaily } = useAppState();
+  const { online } = useAppState();
   const hiddenIds = useRef(new Set<string>());
   const clearedAll = useRef(false);
   const [items, setItems] = useState(operations);
@@ -30,15 +30,11 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
   const [confirm, setConfirm] = useState<"all" | HistoryOperation | null>(null);
 
   useEffect(() => {
-    void refreshDaily();
-  }, [refreshDaily]);
-
-  useEffect(() => {
     if (clearedAll.current) {
       setItems([]);
       return;
     }
-    setItems(operations.filter((operation) => !hiddenIds.current.has(operation.id)));
+    setItems(operations.filter((operation) => operation.operation_type !== "complete" && !hiddenIds.current.has(operation.id)));
   }, [operations]);
 
   async function removeOne(operation: HistoryOperation) {
@@ -50,7 +46,6 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
     try {
       const supabase = createBrowserSupabaseClient();
       await rpcDeleteHistoryOperation(supabase, operation.id);
-      void refreshDaily();
     } catch (err) {
       hiddenIds.current.delete(operation.id);
       setItems((current) =>
@@ -76,7 +71,6 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
     try {
       const supabase = createBrowserSupabaseClient();
       await rpcDeleteAllHistory(supabase);
-      void refreshDaily();
     } catch (err) {
       clearedAll.current = false;
       setItems(previous);
@@ -91,7 +85,7 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
       <div className="space-y-3">
         <TodayPrayerCard variant="history" />
         {error ? <p role="alert">{error}</p> : null}
-        <p className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">아직 완료 기록이 없습니다.</p>
+        <p className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">아직 수정·초기화 이력이 없습니다.</p>
       </div>
     );
   }
@@ -100,13 +94,13 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
     <div className="space-y-3">
       <TodayPrayerCard variant="history" />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-[var(--muted)]">목록에서만 지워지며, 기도 완료 횟수는 바뀌지 않습니다.</p>
+        <p className="text-sm text-[var(--muted)]">목록에서만 지워지며, 기도 완료 횟수와 오늘 기도 횟수는 바뀌지 않습니다.</p>
         <Button variant="danger" disabled={!online || pending} onClick={() => setConfirm("all")}>
-          기록 모두 삭제
+          수정·초기화 이력 모두 삭제
         </Button>
       </div>
       {error ? <p role="alert">{error}</p> : null}
-      {!online ? <p>인터넷 연결이 필요합니다. 연결 후 기록을 삭제할 수 있습니다.</p> : null}
+      {!online ? <p>인터넷 연결이 필요합니다. 연결 후 이력을 삭제할 수 있습니다.</p> : null}
       <ol className="space-y-3">
         {items.map((operation) => (
           <li key={operation.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
@@ -136,7 +130,7 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
       </ol>
       <Modal
         open={confirm !== null}
-        title={confirm === "all" ? "기록을 모두 삭제할까요?" : "이 기록을 삭제할까요?"}
+        title={confirm === "all" ? "수정·초기화 이력을 모두 삭제할까요?" : "이 이력을 삭제할까요?"}
         onClose={() => {
           if (!pending) setConfirm(null);
         }}
@@ -144,8 +138,8 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
       >
         <p>
           {confirm === "all"
-            ? "기록 목록이 모두 사라집니다. 기도 완료 횟수와 Total은 그대로 유지됩니다."
-            : "이 항목만 기록 목록에서 사라집니다. 기도 완료 횟수와 Total은 그대로 유지됩니다."}
+            ? "수정·초기화 이력 목록이 모두 사라집니다. 기도 완료 횟수, Total, 오늘 기도 횟수는 그대로 유지됩니다."
+            : "이 항목만 이력 목록에서 사라집니다. 기도 완료 횟수, Total, 오늘 기도 횟수는 그대로 유지됩니다."}
         </p>
         <div className="mt-4 flex gap-2">
           <Button variant="secondary" disabled={pending} onClick={() => setConfirm(null)}>

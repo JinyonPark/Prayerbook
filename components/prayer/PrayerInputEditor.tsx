@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { parseNameList, sanitizePlainText, type PrayerInputValues } from "@/lib/prayers/inputs";
+import { sanitizePlainText, type PrayerInputValues } from "@/lib/prayers/inputs";
 
 export function PrayerInputEditor({
   slug,
@@ -22,7 +22,6 @@ export function PrayerInputEditor({
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState({
-    child_names: (values.child_names ?? []).join("\n"),
     disease_target_name: values.disease_target_name ?? "",
     disease_name: values.disease_name ?? "",
     wish_text: values.wish_text ?? "",
@@ -30,20 +29,17 @@ export function PrayerInputEditor({
     evangelism_target_name: values.evangelism_target_name ?? "",
   });
   const kind =
-    slug === "children"
-      ? "children"
-      : slug === "heal-sickness"
-        ? "disease"
-        : slug === "hope-prayer"
-          ? "wish"
-          : slug === "conceived-prayer"
-            ? "evangelism"
-            : null;
+    slug === "heal-sickness"
+      ? "disease"
+      : slug === "hope-prayer"
+        ? "wish"
+        : slug === "conceived-prayer"
+          ? "evangelism"
+          : null;
 
   useEffect(() => {
     if (open) return;
     setDraft({
-      child_names: (values.child_names ?? []).join("\n"),
       disease_target_name: values.disease_target_name ?? "",
       disease_name: values.disease_name ?? "",
       wish_text: values.wish_text ?? "",
@@ -55,13 +51,11 @@ export function PrayerInputEditor({
   if (!kind) return null;
 
   const title =
-    kind === "children"
-      ? "자녀 이름 입력"
-      : kind === "disease"
-        ? "기도 대상 설정"
-        : kind === "wish"
-          ? "내용 편집"
-          : "태신자 이름 편집";
+    kind === "disease"
+      ? "기도 대상 설정"
+      : kind === "wish"
+        ? "내용 편집"
+        : "태신자 이름 편집";
 
   function setOpenState(next: boolean) {
     setOpen(next);
@@ -84,7 +78,6 @@ export function PrayerInputEditor({
               disabled={pending}
               onClick={async () => {
                 const next: PrayerInputValues = { ...values };
-                if (kind === "children") next.child_names = parseNameList(draft.child_names);
                 if (kind === "disease") {
                   next.disease_target_name = sanitizePlainText(draft.disease_target_name, 40);
                   next.disease_name = sanitizePlainText(draft.disease_name, 40);
@@ -113,17 +106,6 @@ export function PrayerInputEditor({
         }
       >
         <form className="space-y-3" onSubmit={(event) => event.preventDefault()}>
-          {kind === "children" ? (
-            <label className="block">
-              <span className="mb-1 block text-sm text-[var(--muted)]">여러 이름을 줄바꿈 또는 쉼표로 입력</span>
-              <textarea
-                className="min-h-32 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2"
-                value={draft.child_names}
-                maxLength={400}
-                onChange={(event) => setDraft((current) => ({ ...current, child_names: event.target.value }))}
-              />
-            </label>
-          ) : null}
           {kind === "disease" ? (
             <>
               <label className="block">

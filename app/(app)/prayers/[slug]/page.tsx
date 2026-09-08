@@ -19,13 +19,7 @@ export default async function PrayerPage({ params }: { params: Promise<{ slug: s
 
   return (
     <AppShell title="기도문" hideBottomNav hideHeaderOnMobile compactMobilePadding>
-      <PrayerReader
-        key={slug}
-        prayer={adjacent.current}
-        previous={adjacent.previous}
-        next={adjacent.next}
-        prayers={prayers}
-      />
+      <PrayerReader key={slug} prayer={adjacent.current} prayers={prayers} />
     </AppShell>
   );
 }

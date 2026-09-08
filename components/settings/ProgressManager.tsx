@@ -254,7 +254,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
         title="현재 진행 독수 초기화"
         pending={pending}
         before={current}
-        after={calculateProgressFromItems(previewCurrentRoundReset(items))}
+        after={calculateProgressFromItems(previewCurrentRoundReset(items, spouseSelection), spouseSelection)}
         description="이미 완료한 Total은 유지하고, 현재 진행 중인 독수에서 앞선 기록만 제거합니다. 추가 기도는 변경하지 않습니다."
         onClose={() => setDialogs((d) => ({ ...d, round: false }))}
         onConfirm={async () => {
@@ -267,6 +267,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
       <Modal open={dialogs.main} title="기본 기도 전체 초기화" onClose={() => setDialogs((d) => ({ ...d, main: false }))} closeDisabled={pending}>
         <p>기본 기도 기록을 모두 초기화하시겠습니까?</p>
         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
+          <li>선택에서 제외된 배우자 기도도 0회로 바뀝니다.</li>
           <li>기본 기도 1~{MAIN_PRAYER_COUNT}번이 모두 0회로 변경됩니다.</li>
           <li>현재 Total {current.totalCompleted}독 기록도 0독으로 변경됩니다.</li>
           <li>추가 기도 기록은 유지됩니다.</li>
@@ -294,7 +295,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
       </Modal>
 
       <Modal open={dialogs.all} title="모든 기도 기록 초기화" onClose={() => setDialogs((d) => ({ ...d, all: false }))} closeDisabled={pending}>
-        <p>기본 기도와 추가 기도 완료 횟수를 모두 0으로 변경합니다. 계정과 읽기 설정은 유지됩니다.</p>
+        <p>기본 기도와 추가 기도 완료 횟수를 모두 0으로 변경합니다. 선택에서 제외된 배우자 기도도 포함됩니다. 계정과 읽기 설정은 유지됩니다.</p>
         <p className="mt-3 text-sm">확인을 위해 모든 기록 초기화를 입력하세요.</p>
         <input className="touch-target mt-2 w-full rounded-xl border border-[var(--border)] px-3" value={allConfirm} onChange={(e) => setAllConfirm(e.target.value)} />
         <div className="mt-4 flex gap-2">
@@ -317,7 +318,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
       </Modal>
 
       <Modal open={dialogs.bulk} title="기본 기도 완료 횟수 일괄 설정" onClose={() => setDialogs((d) => ({ ...d, bulk: false }))} closeDisabled={pending}>
-        <p>1~{MAIN_PRAYER_COUNT}번 완료 횟수를 같은 값으로 덮어씁니다. 추가 기도는 변경하지 않습니다.</p>
+        <p>1~{MAIN_PRAYER_COUNT}번 완료 횟수를 같은 값으로 덮어씁니다. 선택에서 제외된 배우자 기도도 포함됩니다. 추가 기도는 변경하지 않습니다.</p>
         <label className="mt-3 block">
           1~{MAIN_PRAYER_COUNT}번 완료 횟수
           <input className="touch-target mt-1 w-full rounded-xl border border-[var(--border)] px-3" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} />

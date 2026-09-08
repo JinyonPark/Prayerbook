@@ -2,10 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { fetchDailyPrayerSummary, fetchProgressSummary } from "@/lib/supabase/rpc";
+import { fetchDailyPrayerSummary, fetchProgressSummary, rpcSavePrayerInputs } from "@/lib/supabase/rpc";
 import type { RpcProgressSummary } from "@/lib/progress/types";
 import type { ReadingState, UserPreferences } from "@/lib/progress/types";
-import type { PersonalizationRow } from "@/lib/prayers/personalize";
+import { personalizationRowsFromInputs, type PersonalizationRow } from "@/lib/prayers/personalize";
 import type { PrayerInputRow, PrayerInputValues } from "@/lib/prayers/inputs";
 import { parseAutoScrollSpeed } from "@/lib/prayers/inputs";
 import { parseSpousePrayerSelection, type SpousePrayerSelection } from "@/lib/progress/spouse";
@@ -136,7 +136,7 @@ export function AppProviders({
   }, []);
 
   const persistTimeZone = useCallback(async (nextZone: string) => {
-    if (!hasPublicEnv() || !navigator.onLine) return;
+    if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
     const {
       data: { user },
@@ -160,7 +160,7 @@ export function AppProviders({
   }, [prefs, spouseSelection]);
 
   const refreshDaily = useCallback(async () => {
-    if (!hasPublicEnv() || !navigator.onLine) return false;
+    if (!hasPublicEnv()) return false;
     const supabase = createBrowserSupabaseClient();
     try {
       const next = await fetchDailyPrayerSummary(supabase);
@@ -173,7 +173,7 @@ export function AppProviders({
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!hasPublicEnv() || !navigator.onLine) return;
+    if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
     try {
       const next = await fetchProgressSummary(supabase);
@@ -238,7 +238,9 @@ export function AppProviders({
       window.location.reload();
     }
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-    void navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    window.setTimeout(() => {
+      void navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    }, 0);
     return () => navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
   }, []);
 
@@ -257,7 +259,7 @@ export function AppProviders({
     const next = { ...readCachedPreferences(), ...prefs, ...partial };
     setPrefs(next);
     writeCachedPreferences(next);
-    if (!hasPublicEnv() || !navigator.onLine) return;
+    if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
     const {
       data: { user },
@@ -282,7 +284,7 @@ export function AppProviders({
   const updateSpouseSelection = useCallback(async (value: SpousePrayerSelection) => {
     const previous = spouseSelection;
     setSpouseSelection(value);
-    if (!hasPublicEnv() || !navigator.onLine) return;
+    if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
     const {
       data: { user },
@@ -303,42 +305,30 @@ export function AppProviders({
   }, [spouseSelection, prefs]);
 
   const savePrayerInputs = useCallback(async (prayerItemId: string, values: PrayerInputValues) => {
-    const cleaned = Object.fromEntries(
-      Object.entries(values).filter(([, item]) => {
-        if (Array.isArray(item)) return item.length > 0;
-        return Boolean(item);
-      }),
-    ) as PrayerInputValues;
     const previous = prayerInputs;
-    const nextRows = [
+    const previousPersonalizations = personalizations;
+    const optimistic = [
       ...prayerInputs.filter((row) => row.prayer_item_id !== prayerItemId),
-      { prayer_item_id: prayerItemId, values: cleaned },
+      { prayer_item_id: prayerItemId, values },
     ];
-    setPrayerInputs(nextRows);
-    if (!hasPublicEnv() || !navigator.onLine) return;
+    setPrayerInputs(optimistic);
+    setPersonalizations(personalizationRowsFromInputs(optimistic));
+    if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-    if (Object.keys(cleaned).length === 0) {
-      const { error } = await supabase.from("user_prayer_inputs").delete().eq("prayer_item_id", prayerItemId);
-      if (error) {
-        setPrayerInputs(previous);
-        throw error;
-      }
-      return;
-    }
-    const { error } = await supabase.from("user_prayer_inputs").upsert({
-      user_id: user.id,
-      prayer_item_id: prayerItemId,
-      values: cleaned,
-    });
-    if (error) {
+    try {
+      const saved = await rpcSavePrayerInputs(supabase, prayerItemId, values);
+      const nextRows = [
+        ...prayerInputs.filter((row) => row.prayer_item_id !== prayerItemId),
+        { prayer_item_id: saved.prayer_item_id, values: saved.values as PrayerInputValues },
+      ].filter((row) => Object.keys(row.values ?? {}).length > 0);
+      setPrayerInputs(nextRows);
+      setPersonalizations(personalizationRowsFromInputs(nextRows));
+    } catch (error) {
       setPrayerInputs(previous);
+      setPersonalizations(previousPersonalizations);
       throw error;
     }
-  }, [prayerInputs]);
+  }, [prayerInputs, personalizations]);
 
   const value = useMemo(
     () => ({

@@ -90,7 +90,8 @@ export function AccountSecurity() {
           />
         </label>
         <p className="text-sm text-[var(--muted)]">
-          로그인할 때는 아이디를 그대로 씁니다. 비밀번호를 잊으면 이 주소로 재설정 메일이 갑니다.
+          로그인할 때는 아이디를 그대로 씁니다. 비밀번호를 잊으면 검증된 복구 이메일 또는 연결된 Google/카카오 계정으로만 재설정할 수 있습니다.
+          복구 수단이 없으면 로그인한 뒤 이메일이나 소셜 계정을 연결해 주세요.
         </p>
         {recoveryError ? <p role="alert">{recoveryError}</p> : null}
         {recoveryMessage ? <p role="status">{recoveryMessage}</p> : null}

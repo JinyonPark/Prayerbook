@@ -7,7 +7,7 @@ import { InstallButton } from "@/components/pwa/InstallButton";
 const items = [
   { href: "/", label: "홈" },
   { href: "/prayers", label: "기도" },
-  { href: "/history", label: "기록" },
+  { href: "/history", label: "이력" },
   { href: "/settings", label: "설정" },
 ];
 
@@ -41,7 +41,8 @@ export function BottomNav() {
             <li key={item.href}>
               <Link
                 href={item.href}
-                className={`touch-target flex items-center justify-center px-2 py-3 text-sm ${active ? "font-semibold text-[var(--accent)]" : "text-[var(--muted)]"}`}
+                prefetch
+                className={`touch-target flex items-center justify-center px-2 py-3 text-sm active:opacity-70 ${active ? "font-semibold text-[var(--accent)]" : "text-[var(--muted)]"}`}
                 aria-current={active ? "page" : undefined}
               >
                 {item.label}

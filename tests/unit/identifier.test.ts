@@ -12,16 +12,21 @@ describe("로그인 식별자", () => {
   it("아이디를 소문자로 정규화한다", () => {
     expect(parseAuthIdentifier("Jin_01")).toEqual({
       kind: "loginId",
-      loginId: "jin_01",
+      loginId: "Jin_01",
+      normalizedLoginId: "jin_01",
     });
   });
 
   it("짧은 아이디와 잘못된 문자를 거른다", () => {
-    expect(parseAuthIdentifier("ab")).toEqual({
-      error: "아이디는 3~20자의 영문, 숫자와 ., _, - 만 사용할 수 있습니다.",
-    });
+    expect(parseAuthIdentifier("ab")).toMatchObject({ error: expect.stringContaining("아이디는") });
+    expect(parseAuthIdentifier("jin@id")).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("한글 아이디를 허용한다", () => {
     expect(parseAuthIdentifier("홍길동")).toEqual({
-      error: "아이디는 3~20자의 영문, 숫자와 ., _, - 만 사용할 수 있습니다.",
+      kind: "loginId",
+      loginId: "홍길동",
+      normalizedLoginId: "홍길동",
     });
   });
 

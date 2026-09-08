@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextAutoScrollPosition, isManualScrollKey } from "@/lib/prayers/auto-scroll";
+import { nextAutoScrollPosition, isManualScrollKey, hasAutoScrollDelayElapsed, shouldStartAutoScroll } from "@/lib/prayers/auto-scroll";
 import { defaultPreferences, parseAutoScrollEnabled } from "@/lib/theme/preferences";
 
 describe("자동 스크롤", () => {
@@ -40,5 +40,40 @@ describe("자동 스크롤", () => {
     expect(parseAutoScrollEnabled("false")).toBe(false);
     expect(parseAutoScrollEnabled(true)).toBe(true);
     expect(parseAutoScrollEnabled("true")).toBe(true);
+  });
+
+  it("1초가 지나기 전에는 시작하지 않는다", () => {
+    expect(hasAutoScrollDelayElapsed(999)).toBe(false);
+    expect(hasAutoScrollDelayElapsed(1000)).toBe(true);
+  });
+
+  it("위치 복원 전이나 수동 스크롤이면 시작하지 않는다", () => {
+    expect(
+      shouldStartAutoScroll({
+        enabled: true,
+        restored: false,
+        visible: true,
+        overlayOpen: false,
+        cancelled: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldStartAutoScroll({
+        enabled: true,
+        restored: true,
+        visible: true,
+        overlayOpen: false,
+        cancelled: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldStartAutoScroll({
+        enabled: true,
+        restored: true,
+        visible: true,
+        overlayOpen: false,
+        cancelled: false,
+      }),
+    ).toBe(true);
   });
 });

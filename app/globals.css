@@ -103,10 +103,9 @@ body::before {
   pointer-events: none;
 }
 
-@media (max-width: 1023px) {
+@media (display-mode: standalone), (display-mode: fullscreen) {
   :root {
-    /* Android often reports 0 for safe-area; keep the clock on a dark strip. */
-    --safe-top: max(var(--safe-top-env), 48px);
+    --safe-top: var(--safe-top-env);
   }
 }
 

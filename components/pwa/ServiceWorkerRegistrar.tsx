@@ -8,7 +8,8 @@ export function ServiceWorkerRegistrar() {
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-    void navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((registration) => {
+    void navigator.serviceWorker.getRegistration().then((registration) => {
+      if (!registration) return;
       if (registration.waiting) setWaiting(registration.waiting);
       registration.addEventListener("updatefound", () => {
         const worker = registration.installing;

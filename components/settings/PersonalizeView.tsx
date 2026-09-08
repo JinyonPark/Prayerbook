@@ -6,127 +6,29 @@ import { useAppState } from "@/components/providers/AppProviders";
 import { toUserMessage } from "@/lib/errors/user-message";
 import {
   PERSONALIZATION_PRAYERS,
-  intercessionFor,
   namesFor,
-  type PersonalizationRow,
+  intercessionFor,
+  personalizationRowsFromInputs,
 } from "@/lib/prayers/personalize";
-import { parseNameList } from "@/lib/prayers/inputs";
-import { CHILDREN_PRAYER_ITEM_ID } from "@/lib/prayers/known-ids";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { parseNameList, type PrayerInputValues } from "@/lib/prayers/inputs";
+import { PERSONALIZATION_ITEM_IDS } from "@/lib/prayers/known-ids";
 
 export function PersonalizeView() {
-  const { personalizations, setPersonalizations, online, prayerInputs, savePrayerInputs } = useAppState();
+  const { online, prayerInputs, savePrayerInputs } = useAppState();
+  const personalizations = personalizationRowsFromInputs(prayerInputs);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
 
-  async function withUser() {
-    const supabase = createBrowserSupabaseClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("로그인이 필요합니다.");
-    return { supabase, user };
+  function valuesFor(slug: string): PrayerInputValues {
+    const id = PERSONALIZATION_ITEM_IDS[slug];
+    return prayerInputs.find((row) => row.prayer_item_id === id)?.values ?? {};
   }
 
-  async function addName(slug: string, value: string, sortOrder: number) {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    setPending(`${slug}-name`);
+  async function saveSlug(slug: string, next: PrayerInputValues, pendingKey: string) {
+    setPending(pendingKey);
     setError(null);
     try {
-      const { supabase, user } = await withUser();
-      const { data, error: insertError } = await supabase
-        .from("user_prayer_personalizations")
-        .insert({
-          user_id: user.id,
-          prayer_slug: slug,
-          slot_key: "name",
-          value: trimmed,
-          sort_order: sortOrder,
-        })
-        .select("id, prayer_slug, slot_key, value, sort_order")
-        .single();
-      if (insertError) throw insertError;
-      setPersonalizations([...personalizations, data as PersonalizationRow]);
-    } catch (err) {
-      setError(toUserMessage(err));
-    } finally {
-      setPending(null);
-    }
-  }
-
-  async function updateRow(row: PersonalizationRow, value: string) {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    setPending(row.id);
-    setError(null);
-    try {
-      const { supabase } = await withUser();
-      const { error: updateError } = await supabase
-        .from("user_prayer_personalizations")
-        .update({ value: trimmed })
-        .eq("id", row.id);
-      if (updateError) throw updateError;
-      setPersonalizations(personalizations.map((item) => (item.id === row.id ? { ...item, value: trimmed } : item)));
-    } catch (err) {
-      setError(toUserMessage(err));
-    } finally {
-      setPending(null);
-    }
-  }
-
-  async function removeRow(row: PersonalizationRow) {
-    setPending(row.id);
-    setError(null);
-    try {
-      const { supabase } = await withUser();
-      const { error: deleteError } = await supabase.from("user_prayer_personalizations").delete().eq("id", row.id);
-      if (deleteError) throw deleteError;
-      setPersonalizations(personalizations.filter((item) => item.id !== row.id));
-    } catch (err) {
-      setError(toUserMessage(err));
-    } finally {
-      setPending(null);
-    }
-  }
-
-  async function saveIntercession(slug: string, existing: PersonalizationRow | null, value: string) {
-    const trimmed = value.trim();
-    setPending(`${slug}-intercession`);
-    setError(null);
-    try {
-      const { supabase, user } = await withUser();
-      if (!trimmed) {
-        if (!existing) return;
-        const { error: deleteError } = await supabase.from("user_prayer_personalizations").delete().eq("id", existing.id);
-        if (deleteError) throw deleteError;
-        setPersonalizations(personalizations.filter((item) => item.id !== existing.id));
-        return;
-      }
-      if (existing) {
-        const { error: updateError } = await supabase
-          .from("user_prayer_personalizations")
-          .update({ value: trimmed })
-          .eq("id", existing.id);
-        if (updateError) throw updateError;
-        setPersonalizations(
-          personalizations.map((item) => (item.id === existing.id ? { ...item, value: trimmed } : item)),
-        );
-        return;
-      }
-      const { data, error: insertError } = await supabase
-        .from("user_prayer_personalizations")
-        .insert({
-          user_id: user.id,
-          prayer_slug: slug,
-          slot_key: "intercession",
-          value: trimmed,
-          sort_order: 0,
-        })
-        .select("id, prayer_slug, slot_key, value, sort_order")
-        .single();
-      if (insertError) throw insertError;
-      setPersonalizations([...personalizations, data as PersonalizationRow]);
+      await savePrayerInputs(PERSONALIZATION_ITEM_IDS[slug], next);
     } catch (err) {
       setError(toUserMessage(err));
     } finally {
@@ -145,42 +47,20 @@ export function PersonalizeView() {
         <PrayerEditor
           key={prayer.slug}
           prayer={prayer}
-          names={namesFor(personalizations, prayer.slug)}
-          intercession={intercessionFor(personalizations, prayer.slug)}
-          childNames={
-            prayer.slug === "children"
-              ? (prayerInputs.find((row) => row.prayer_item_id === CHILDREN_PRAYER_ITEM_ID)?.values.child_names ??
-                namesFor(personalizations, "children").map((row) => row.value))
-              : []
-          }
+          names={namesFor(personalizations, prayer.slug).map((row) => row.value)}
+          intercession={intercessionFor(personalizations, prayer.slug)?.value ?? ""}
           pending={pending}
           disabled={!online || pending !== null}
-          onSaveChildNames={async (raw) => {
-            setPending("children-names");
-            setError(null);
-            try {
-              await savePrayerInputs(CHILDREN_PRAYER_ITEM_ID, { child_names: parseNameList(raw) });
-            } catch (err) {
-              setError(toUserMessage(err));
-            } finally {
-              setPending(null);
-            }
+          onSaveNames={(names) => {
+            const current = valuesFor(prayer.slug);
+            const next: PrayerInputValues = { ...current };
+            if (prayer.slug === "children") next.child_names = names;
+            else next.names = names;
+            void saveSlug(prayer.slug, next, `${prayer.slug}-name`);
           }}
-          onAddName={(value) => {
-            const nextOrder = namesFor(personalizations, prayer.slug).reduce(
-              (max, row) => Math.max(max, row.sort_order),
-              -1,
-            ) + 1;
-            void addName(prayer.slug, value, nextOrder);
-          }}
-          onUpdateName={(row, value) => void updateRow(row, value)}
-          onDeleteName={(row) => void removeRow(row)}
-          onSaveIntercession={(value) =>
-            void saveIntercession(prayer.slug, intercessionFor(personalizations, prayer.slug), value)
-          }
-          onDeleteIntercession={() => {
-            const row = intercessionFor(personalizations, prayer.slug);
-            if (row) void removeRow(row);
+          onSaveIntercession={(value) => {
+            const current = valuesFor(prayer.slug);
+            void saveSlug(prayer.slug, { ...current, intercession: value }, `${prayer.slug}-intercession`);
           }}
         />
       ))}
@@ -191,36 +71,26 @@ export function PersonalizeView() {
 function PrayerEditor({
   prayer,
   names,
-  childNames,
   intercession,
   pending,
   disabled,
-  onSaveChildNames,
-  onAddName,
-  onUpdateName,
-  onDeleteName,
+  onSaveNames,
   onSaveIntercession,
-  onDeleteIntercession,
 }: {
   prayer: (typeof PERSONALIZATION_PRAYERS)[number];
-  names: PersonalizationRow[];
-  childNames: string[];
-  intercession: PersonalizationRow | null;
+  names: string[];
+  intercession: string;
   pending: string | null;
   disabled: boolean;
-  onSaveChildNames: (raw: string) => Promise<void>;
-  onAddName: (value: string) => void;
-  onUpdateName: (row: PersonalizationRow, value: string) => void;
-  onDeleteName: (row: PersonalizationRow) => void;
+  onSaveNames: (names: string[]) => void;
   onSaveIntercession: (value: string) => void;
-  onDeleteIntercession: () => void;
 }) {
+  const [nameDraft, setNameDraft] = useState(names.join("\n"));
   const [newName, setNewName] = useState("");
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [childDraft, setChildDraft] = useState(childNames.join("\n"));
   const [intercessionDraft, setIntercessionDraft] = useState<string | null>(null);
   const atNameLimit = Boolean(prayer.maxNames && names.length >= prayer.maxNames);
-  const intercessionValue = intercessionDraft ?? intercession?.value ?? "";
+  const intercessionValue = intercessionDraft ?? intercession;
+  const parsedNames = prayer.slug === "children" ? parseNameList(nameDraft) : names;
 
   return (
     <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
@@ -232,41 +102,28 @@ function PrayerEditor({
           <p className="text-sm text-[var(--muted)]">자녀 이름을 여러 명 한 번에 입력합니다. 기도문에는 함께 표시됩니다.</p>
           <textarea
             className="min-h-32 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2"
-            value={childDraft}
-            maxLength={400}
+            value={nameDraft}
+            maxLength={1000}
             disabled={disabled}
-            onChange={(event) => setChildDraft(event.target.value)}
+            onChange={(event) => setNameDraft(event.target.value)}
           />
-          {parseNameList(childDraft).length > 0 ? (
-            <p className="text-sm">표시: {parseNameList(childDraft).join(", ")}</p>
-          ) : (
-            <p className="text-sm">아직 저장된 이름이 없습니다.</p>
-          )}
-          <Button disabled={disabled || pending === "children-names"} onClick={() => void onSaveChildNames(childDraft)}>
-            {pending === "children-names" ? "저장 중" : "저장"}
+          {parsedNames.length > 0 ? <p className="text-sm">표시: {parsedNames.join(", ")}</p> : <p className="text-sm">아직 저장된 이름이 없습니다.</p>}
+          <Button disabled={disabled || pending === "children-name"} onClick={() => onSaveNames(parsedNames)}>
+            {pending === "children-name" ? "저장 중" : "저장"}
           </Button>
         </div>
       ) : prayer.hasNames ? (
         <div className="mt-4 space-y-3">
           <p className="text-sm text-[var(--muted)]">{prayer.nameLabel}</p>
           {names.length === 0 ? <p className="text-sm">아직 저장된 이름이 없습니다.</p> : null}
-          {names.map((row) => (
-            <div key={row.id} className="flex flex-wrap gap-2">
-              <input
-                className="touch-target min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3"
-                value={drafts[row.id] ?? row.value}
-                maxLength={40}
-                disabled={disabled}
-                onChange={(event) => setDrafts((current) => ({ ...current, [row.id]: event.target.value }))}
-              />
+          {names.map((name) => (
+            <div key={name} className="flex flex-wrap gap-2">
+              <p className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2">{name}</p>
               <Button
-                variant="secondary"
-                disabled={disabled || pending === row.id}
-                onClick={() => onUpdateName(row, drafts[row.id] ?? row.value)}
+                variant="danger"
+                disabled={disabled}
+                onClick={() => onSaveNames(names.filter((item) => item !== name))}
               >
-                {pending === row.id ? "저장 중" : "수정"}
-              </Button>
-              <Button variant="danger" disabled={disabled || pending === row.id} onClick={() => onDeleteName(row)}>
                 삭제
               </Button>
             </div>
@@ -278,7 +135,7 @@ function PrayerEditor({
               <input
                 className="touch-target min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3"
                 value={newName}
-                maxLength={40}
+                maxLength={50}
                 placeholder={`${prayer.nameLabel} 추가`}
                 disabled={disabled}
                 onChange={(event) => setNewName(event.target.value)}
@@ -286,7 +143,8 @@ function PrayerEditor({
               <Button
                 disabled={disabled || pending === `${prayer.slug}-name` || !newName.trim()}
                 onClick={() => {
-                  onAddName(newName);
+                  const next = prayer.maxNames === 1 ? [newName.trim()] : [...names, newName.trim()].filter(Boolean);
+                  onSaveNames(next);
                   setNewName("");
                 }}
               >
@@ -317,10 +175,10 @@ function PrayerEditor({
             {intercession ? (
               <Button
                 variant="danger"
-                disabled={disabled || pending === intercession.id}
+                disabled={disabled}
                 onClick={() => {
                   setIntercessionDraft("");
-                  onDeleteIntercession();
+                  onSaveIntercession("");
                 }}
               >
                 삭제

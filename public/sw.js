@@ -1,4 +1,4 @@
-const VERSION = "prayer-book-v9";
+const VERSION = "prayer-book-v11";
 const SHELL = ["/", "/login", "/install", "/manifest.webmanifest", "/offline.html", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -39,6 +39,7 @@ self.addEventListener("fetch", (event) => {
 
   if (request.method !== "GET") return;
   if (url.hostname.includes("supabase.co")) return;
+  if (url.pathname.includes("/rest/v1/") || url.pathname.includes("/auth/v1/")) return;
   if (url.pathname.startsWith("/api/")) return;
   if (url.pathname.startsWith("/auth/")) return;
   if (isNextRouterRequest(request, url)) return;

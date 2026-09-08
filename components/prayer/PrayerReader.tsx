@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Drawer } from "@/components/ui/Drawer";
 import { Modal } from "@/components/ui/Modal";
@@ -10,27 +10,33 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { PrayerBody } from "@/components/prayer/PrayerBody";
 import { PrayerInputEditor } from "@/components/prayer/PrayerInputEditor";
 import { useAppState } from "@/components/providers/AppProviders";
-import { toUserMessage } from "@/lib/errors/user-message";
+import { isAuthFailure, logDevError } from "@/lib/errors/inspect";
+import { toCompleteUserMessage } from "@/lib/errors/user-message";
 import { applyPersonalization, applyPrayerInputValues, intercessionFor, namesFor, personalizationConfig } from "@/lib/prayers/personalize";
 import type { PrayerItemRecord } from "@/lib/prayers/markdown";
 import { AUTO_SCROLL_PX_PER_SECOND, type PrayerInputValues } from "@/lib/prayers/inputs";
-import { captureReadingAnchor, restoreReadingAnchor } from "@/lib/reading/anchor";
+import { captureReadingAnchor, readingPersistEquals, restoreReadingAnchor } from "@/lib/reading/anchor";
 import { getScrollRatio, restoreScrollRatio } from "@/lib/reading/scroll-ratio";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { rpcComplete } from "@/lib/supabase/rpc";
+import { completePrayerRequest } from "@/lib/progress/complete-request";
 import { hasPublicEnv } from "@/lib/validation/env";
 import { eligibleCountFromSummary } from "@/lib/progress/calculate";
 import { applySuccessfulCompleteToDaily } from "@/lib/progress/daily";
-import { isManualScrollKey, nextAutoScrollPosition } from "@/lib/prayers/auto-scroll";
+import { excludedSpouseItemNumber } from "@/lib/progress/spouse";
+import { getAdjacentSequentialPrayers } from "@/lib/prayers/sequential";
+import {
+  AUTO_SCROLL_START_DELAY_MS,
+  isManualScrollKey,
+  nextAutoScrollPosition,
+  shouldStartAutoScroll,
+} from "@/lib/prayers/auto-scroll";
 
 type Props = {
   prayer: PrayerItemRecord;
-  previous: PrayerItemRecord | null;
-  next: PrayerItemRecord | null;
   prayers: PrayerItemRecord[];
 };
 
-export function PrayerReader({ prayer, previous, next, prayers }: Props) {
+export function PrayerReader({ prayer, prayers }: Props) {
   const router = useRouter();
   const {
     summary,
@@ -39,7 +45,7 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
     setReading,
     prefs,
     updatePrefs,
-    online,
+    spouseSelection,
     personalizations,
     prayerInputs,
     savePrayerInputs,
@@ -56,11 +62,19 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
   const [chromeHeight, setChromeHeight] = useState(72);
   const [reachedEnd, setReachedEnd] = useState(false);
   const [inputEditorOpen, setInputEditorOpen] = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [navPending, setNavPending] = useState(false);
   const restored = useRef(false);
+  const lastOpenedAtRef = useRef(reading?.last_opened_at ?? null);
+  const lastReadingRef = useRef(reading);
+  const persistReadingRef = useRef<(opened?: boolean) => Promise<void>>(async () => {});
   const lastSaved = useRef(0);
   const lastScrollY = useRef(0);
   const userScrolling = useRef(false);
   const restoring = useRef(false);
+  const completeEventId = useRef<string | null>(null);
+  const autoCancelRef = useRef(false);
+  const autoTimerRef = useRef(0);
   const chromeRef = useRef<HTMLDivElement>(null);
   const articleWrapRef = useRef<HTMLDivElement>(null);
   const nameRows = namesFor(personalizations, prayer.slug);
@@ -70,7 +84,16 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
   const childNames = prayer.slug === "children" ? (inputValues.child_names?.length ? inputValues.child_names : nameRows.map((row) => row.value)) : null;
   const [focusName, setFocusName] = useState(nameRows[0]?.value ?? "");
   const overlayOpen = tocOpen || celebration !== null || inputEditorOpen;
+  const overlayOpenRef = useRef(overlayOpen);
+  overlayOpenRef.current = overlayOpen;
   const eligibleCount = eligibleCountFromSummary(summary);
+  const excludedNumber = excludedSpouseItemNumber(spouseSelection);
+  const adjacent = useMemo(
+    () => getAdjacentSequentialPrayers(prayers, prayer.slug, spouseSelection),
+    [prayers, prayer.slug, spouseSelection],
+  );
+  const previousPrayer = adjacent.previous;
+  const nextPrayer = adjacent.next;
 
   const progress = summary?.items.find((item) => item.prayer_item_id === prayer.id);
   const count = progress?.completion_count ?? 0;
@@ -108,16 +131,21 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
       const ratio = getScrollRatio();
       const article = articleWrapRef.current?.querySelector(".reader-article") as HTMLElement | null;
       const anchor = captureReadingAnchor(article);
+      const lastOpenedAt = opened ? new Date().toISOString() : lastOpenedAtRef.current;
+      if (opened) lastOpenedAtRef.current = lastOpenedAt;
       const payload = {
         last_prayer_item_id: prayer.id,
         scroll_ratio: ratio,
         anchor_key: anchor.anchorKey,
         anchor_offset: anchor.anchorOffset,
-        last_opened_at: opened ? new Date().toISOString() : reading?.last_opened_at ?? null,
+        last_opened_at: lastOpenedAt,
         updated_at: new Date().toISOString(),
       };
-      setReading(payload);
-      if (!hasPublicEnv() || !navigator.onLine) return;
+      if (!readingPersistEquals(lastReadingRef.current, payload)) {
+        lastReadingRef.current = payload;
+        setReading(payload);
+      }
+      if (!hasPublicEnv()) return;
       const supabase = createBrowserSupabaseClient();
       const {
         data: { user },
@@ -137,17 +165,30 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
         });
       }
     },
-    [prayer.id, reading?.last_opened_at, setReading],
+    [prayer.id, setReading],
   );
+  persistReadingRef.current = persistReading;
+
+  const cancelAutoStart = useCallback(() => {
+    autoCancelRef.current = true;
+    window.clearTimeout(autoTimerRef.current);
+    autoTimerRef.current = 0;
+    setAutoRunning(false);
+  }, []);
 
   useEffect(() => {
     restored.current = false;
+    autoCancelRef.current = false;
+    completeEventId.current = null;
     setReachedEnd(false);
+    setAutoRunning(false);
+    setNavPending(false);
     setChromeVisible(true);
     setAtTop(true);
     setTocOpen(false);
     setStatus("idle");
     setError(null);
+    window.clearTimeout(autoTimerRef.current);
   }, [prayer.id]);
 
   const restorePosition = useCallback(() => {
@@ -163,22 +204,22 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
     window.setTimeout(() => {
       restoring.current = false;
     }, 250);
-  }, [prayer.id, reading]);
+  }, [prayer.id, reading?.last_prayer_item_id, reading?.scroll_ratio, reading?.anchor_key, reading?.anchor_offset]);
 
   useEffect(() => {
     if (restored.current) return;
     const id = window.requestAnimationFrame(() => {
       if (reading?.last_prayer_item_id === prayer.id) {
         restorePosition();
-        void persistReading(true);
+        void persistReadingRef.current(true);
         return;
       }
       window.scrollTo(0, 0);
       restored.current = true;
-      void persistReading(true);
+      void persistReadingRef.current(true);
     });
     return () => window.cancelAnimationFrame(id);
-  }, [prayer.id, prayer.content_md, displayMarkdown, prefs.fontSize, prefs.lineHeight, prefs.theme, restorePosition, persistReading, reading?.last_prayer_item_id]);
+  }, [prayer.id, prayer.content_md, displayMarkdown, prefs.fontSize, prefs.lineHeight, prefs.theme, restorePosition, reading?.last_prayer_item_id]);
 
   useEffect(() => {
     let frame = 0;
@@ -205,7 +246,7 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
 
   useEffect(() => {
     function saveNow() {
-      void persistReading();
+      void persistReadingRef.current();
     }
     function onScroll() {
       const now = Date.now();
@@ -222,7 +263,7 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
       window.removeEventListener("pagehide", saveNow);
       saveNow();
     };
-  }, [persistReading]);
+  }, [prayer.id]);
 
   useEffect(() => {
     lastScrollY.current = window.scrollY;
@@ -255,11 +296,81 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
   }, [atTop, numberedTitle, chromeVisible]);
 
   useEffect(() => {
+    if (previousPrayer) router.prefetch(`/prayers/${previousPrayer.slug}`);
+    if (nextPrayer) router.prefetch(`/prayers/${nextPrayer.slug}`);
+  }, [previousPrayer, nextPrayer, router]);
+
+  useEffect(() => {
     if (prefs.autoScrollEnabled) setReachedEnd(false);
   }, [prefs.autoScrollEnabled]);
 
   useEffect(() => {
-    if (!prefs.autoScrollEnabled || reachedEnd || overlayOpen) return;
+    if (overlayOpen && !autoRunning) {
+      autoCancelRef.current = true;
+      window.clearTimeout(autoTimerRef.current);
+    }
+  }, [overlayOpen, autoRunning]);
+
+  useEffect(() => {
+    window.clearTimeout(autoTimerRef.current);
+    if (!prefs.autoScrollEnabled || reachedEnd) {
+      setAutoRunning(false);
+      return;
+    }
+
+    function arm() {
+      if (autoCancelRef.current || !prefs.autoScrollEnabled) return;
+      if (!restored.current || restoring.current) {
+        autoTimerRef.current = window.setTimeout(arm, 50);
+        return;
+      }
+      autoTimerRef.current = window.setTimeout(() => {
+        if (
+          !shouldStartAutoScroll({
+            enabled: prefs.autoScrollEnabled,
+            restored: restored.current,
+            visible: document.visibilityState === "visible",
+            overlayOpen: overlayOpenRef.current,
+            cancelled: autoCancelRef.current,
+          })
+        ) {
+          return;
+        }
+        setAutoRunning(true);
+      }, AUTO_SCROLL_START_DELAY_MS);
+    }
+    arm();
+    return () => window.clearTimeout(autoTimerRef.current);
+  }, [prayer.id, prefs.autoScrollEnabled, reachedEnd]);
+
+  useEffect(() => {
+    if (autoRunning) return;
+    function cancelFromUser() {
+      if (restoring.current) return;
+      autoCancelRef.current = true;
+      window.clearTimeout(autoTimerRef.current);
+    }
+    function cancelFromKey(event: KeyboardEvent) {
+      if (!isManualScrollKey(event.key)) return;
+      cancelFromUser();
+    }
+    function cancelIfHidden() {
+      if (document.visibilityState !== "visible") cancelFromUser();
+    }
+    window.addEventListener("wheel", cancelFromUser, { passive: true });
+    window.addEventListener("touchmove", cancelFromUser, { passive: true });
+    window.addEventListener("keydown", cancelFromKey);
+    document.addEventListener("visibilitychange", cancelIfHidden);
+    return () => {
+      window.removeEventListener("wheel", cancelFromUser);
+      window.removeEventListener("touchmove", cancelFromUser);
+      window.removeEventListener("keydown", cancelFromKey);
+      document.removeEventListener("visibilitychange", cancelIfHidden);
+    };
+  }, [autoRunning, prayer.id]);
+
+  useEffect(() => {
+    if (!autoRunning || reachedEnd || overlayOpen) return;
     let frame = 0;
     let last = performance.now();
     const speed = AUTO_SCROLL_PX_PER_SECOND[prefs.autoScrollSpeed];
@@ -275,9 +386,10 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
       ) {
         const max = document.documentElement.scrollHeight - window.innerHeight;
         const next = nextAutoScrollPosition(window.scrollY, max, speed, elapsed);
-        window.scrollTo(0, next.y);
+        window.scrollTo({ top: next.y });
         if (next.finished && max > 1) {
           setReachedEnd(true);
+          setAutoRunning(false);
           return;
         }
       }
@@ -306,7 +418,7 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
       window.removeEventListener("touchmove", pauseFromUser);
       window.removeEventListener("keydown", pauseFromKey);
     };
-  }, [prefs.autoScrollEnabled, reachedEnd, overlayOpen, prefs.autoScrollSpeed]);
+  }, [autoRunning, reachedEnd, overlayOpen, prefs.autoScrollSpeed]);
 
   useEffect(() => {
     if (!restored.current) return;
@@ -325,16 +437,20 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
   }, [prefs.fontSize, prefs.lineHeight, prefs.theme]);
 
   async function onComplete() {
-    if (!online) return;
+    if (status === "saving") return;
     setStatus("saving");
     setError(null);
-    const eventId = crypto.randomUUID();
+    if (!completeEventId.current) completeEventId.current = crypto.randomUUID();
+    const eventId = completeEventId.current;
     try {
       const supabase = createBrowserSupabaseClient();
-      const result = await rpcComplete(supabase, prayer.id, eventId);
+      const result = await completePrayerRequest(supabase, prayer.id, eventId);
+      completeEventId.current = null;
       setSummary(result);
-      const refreshed = await refreshDaily();
-      if (!refreshed) {
+      setStatus("saved");
+      if (result.total_changed) setCelebration(result.current_total);
+      void refreshDaily().then((refreshed) => {
+        if (refreshed) return;
         setDailySummary((current) =>
           applySuccessfulCompleteToDaily(current, {
             prayerItemId: prayer.id,
@@ -344,12 +460,14 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
             idempotent: result.idempotent,
           }),
         );
-      }
-      setStatus("saved");
-      if (result.total_changed) setCelebration(result.current_total);
+      });
     } catch (err) {
+      logDevError("onComplete", err);
       setStatus("failed");
-      setError(toUserMessage(err));
+      setError(toCompleteUserMessage(err));
+      if (isAuthFailure(err)) {
+        router.replace(`/login?next=${encodeURIComponent(`/prayers/${prayer.slug}`)}`);
+      }
     }
   }
 
@@ -365,8 +483,12 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
   }
 
   function goToPrayer(slug: string) {
+    if (navPending) return;
+    cancelAutoStart();
     setTocOpen(false);
     if (slug === prayer.slug) return;
+    setNavPending(true);
+    void persistReading();
     router.push(`/prayers/${slug}`);
   }
 
@@ -374,10 +496,10 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
     <nav aria-label="기도 목차">
       <ul className="space-y-1">
         {prayers.map((item) => (
-          <li key={item.slug}>
+          <li key={item.id}>
             <Link
               href={`/prayers/${item.slug}`}
-              prefetch={false}
+              prefetch={item.slug === previousPrayer?.slug || item.slug === nextPrayer?.slug}
               className={`block rounded-lg px-2 py-2 ${item.slug === prayer.slug ? "bg-[var(--bg)] font-semibold" : ""}`}
               onClick={(event) => {
                 event.preventDefault();
@@ -386,6 +508,9 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
             >
               {item.item_number ? `${item.item_number}. ` : ""}
               {item.title}
+              {excludedNumber !== null && item.item_number === excludedNumber ? (
+                <span className="ml-2 text-sm font-normal text-[var(--muted)]">진행률 제외</span>
+              ) : null}
             </Link>
           </li>
         ))}
@@ -395,19 +520,24 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
 
   return (
     <div className="reader-shell">
+      {navPending ? <div className="pointer-events-none fixed inset-x-0 top-0 z-[95] h-1 bg-[var(--accent)]" aria-hidden="true" /> : null}
       <aside className="reader-side rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">{toc}</aside>
       <div>
         <div
           ref={chromeRef}
-          className={`reader-chrome z-40 border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur transition-transform duration-200 max-lg:fixed max-lg:inset-x-0 max-lg:top-0 max-lg:pt-[var(--safe-top)] max-lg:shadow-[0_calc(-1*var(--safe-top))_0_var(--status-bar)] lg:sticky lg:top-[calc(var(--header-h)+var(--safe-top))] lg:-mx-5 lg:mb-4 lg:px-5 ${
-            chromeVisible ? "max-lg:translate-y-0" : "max-lg:-translate-y-full max-lg:pointer-events-none"
+          className={`reader-chrome pointer-events-none z-40 border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur transition-transform duration-200 max-lg:fixed max-lg:inset-x-0 max-lg:top-0 max-lg:pt-[var(--safe-top)] max-lg:shadow-[0_calc(-1*var(--safe-top))_0_var(--status-bar)] lg:sticky lg:top-[calc(var(--header-h)+var(--safe-top))] lg:-mx-5 lg:mb-4 lg:px-5 ${
+            chromeVisible ? "max-lg:translate-y-0" : "max-lg:-translate-y-full"
           }`}
         >
-          <div className="relative z-[1] mx-auto flex max-w-[760px] items-center gap-1 px-3 py-1 lg:px-0 lg:py-2">
+          <div className="pointer-events-auto relative z-[1] mx-auto flex max-w-[760px] items-center gap-1 px-3 py-1 lg:px-0 lg:py-2">
             <button
               type="button"
-              className="touch-target inline-flex shrink-0 items-center rounded-xl px-2"
-              onClick={() => router.push("/prayers")}
+              className="touch-target inline-flex shrink-0 items-center rounded-xl px-2 active:opacity-70"
+              onClick={() => {
+                cancelAutoStart();
+                void persistReading();
+                router.push("/prayers");
+              }}
             >
               뒤로
             </button>
@@ -416,8 +546,12 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
             <div className="ml-auto flex shrink-0 items-center">
               <button
                 type="button"
-                className="touch-target inline-flex items-center justify-center rounded-xl px-2 text-sm font-medium lg:hidden"
-                onClick={() => router.push("/")}
+                className="touch-target inline-flex items-center justify-center rounded-xl px-2 text-sm font-medium active:opacity-70 lg:hidden"
+                onClick={() => {
+                  cancelAutoStart();
+                  void persistReading();
+                  router.push("/");
+                }}
               >
                 홈
               </button>
@@ -447,12 +581,12 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
             </div>
           </div>
           {atTop ? (
-            <p className="mx-auto max-w-[760px] px-3 pb-2 font-semibold leading-snug lg:hidden">{numberedTitle}</p>
+            <p className="pointer-events-none mx-auto max-w-[760px] px-3 pb-2 font-semibold leading-snug lg:hidden">{numberedTitle}</p>
           ) : null}
         </div>
-        <div className="lg:hidden" style={{ height: chromeHeight }} aria-hidden="true" />
+        <div className="pointer-events-none lg:hidden" style={{ height: chromeHeight }} aria-hidden="true" />
 
-        {["children", "heal-sickness", "hope-prayer", "conceived-prayer"].includes(prayer.slug) ? (
+        {["heal-sickness", "hope-prayer", "conceived-prayer"].includes(prayer.slug) ? (
         <div className="mx-auto max-w-[760px] space-y-3 px-3 pt-3 lg:px-0">
           <PrayerInputEditor
             slug={prayer.slug}
@@ -471,8 +605,18 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
           {prayer.content_md ? <PrayerBody prayerId={prayer.id} markdown={displayMarkdown} /> : <p>기도문 데이터가 없습니다.</p>}
         </div>
 
-        <div className="mx-auto mt-6 max-w-[760px] space-y-3 pb-[calc(7rem+var(--safe-bottom))] lg:pb-8">
-          {childNames && childNames.length > 0 ? (
+        <div className="relative z-10 mx-auto mt-6 max-w-[760px] space-y-3 pb-[calc(7rem+var(--safe-bottom))] lg:pb-8">
+          {prayer.slug === "children" ? (
+            <div className="space-y-1 text-sm text-[var(--muted)]">
+              {childNames && childNames.length > 0 ? <p>자녀 이름: {childNames.join(", ")}</p> : <p>저장된 자녀 이름이 없습니다.</p>}
+              <p>
+                자녀 이름은 설정에서만 수정할 수 있습니다.{" "}
+                <Link href="/settings/personalize" className="underline">
+                  이름·중보기도 관리
+                </Link>
+              </p>
+            </div>
+          ) : childNames && childNames.length > 0 ? (
             <p className="text-sm text-[var(--muted)]">기도 이름: {childNames.join(", ")}</p>
           ) : null}
           {prayer.slug !== "children" && nameRows.length > 1 ? (
@@ -515,15 +659,12 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
           ) : (
             <p>누적 완료 {count}회</p>
           )}
-          {!online ? (
-            <p role="status">인터넷 연결이 필요합니다. 연결 후 기도 완료 기록을 저장할 수 있습니다.</p>
-          ) : null}
           {status === "saving" ? <p>저장 중</p> : null}
           {status === "saved" ? <p>저장 완료</p> : null}
           {status === "failed" ? <p role="alert">{error}</p> : null}
-          <Button className="w-full" onClick={() => void onComplete()} disabled={!online || status === "saving"}>
-            {!online
-              ? "오프라인에서는 저장할 수 없습니다"
+          <Button className="w-full active:opacity-70" onClick={() => void onComplete()} disabled={status === "saving"}>
+            {status === "saving"
+              ? "저장 중"
               : prayer.category === "supplementary"
                 ? "기도 완료 기록"
                 : doneThisRound
@@ -532,28 +673,45 @@ export function PrayerReader({ prayer, previous, next, prayers }: Props) {
           </Button>
           {prayer.category === "main" && doneThisRound ? <p>✓ 이번 {round}독 완료됨</p> : null}
           <div className="flex flex-wrap gap-2">
-            {previous ? (
-              <button
-                type="button"
-                className="touch-target rounded-xl border border-[var(--border)] px-4 py-2.5"
-                onClick={() => goToPrayer(previous.slug)}
+            {previousPrayer ? (
+              <Link
+                href={`/prayers/${previousPrayer.slug}`}
+                prefetch
+                className="touch-target rounded-xl border border-[var(--border)] px-4 py-2.5 active:opacity-70"
+                aria-disabled={navPending}
+                onClick={(event) => {
+                  event.preventDefault();
+                  goToPrayer(previousPrayer.slug);
+                }}
               >
                 이전 기도
-              </button>
-            ) : null}
-            {next ? (
-              <button
-                type="button"
-                className="touch-target rounded-xl border border-[var(--border)] px-4 py-2.5"
-                onClick={() => goToPrayer(next.slug)}
+              </Link>
+            ) : (
+              <span className="touch-target inline-flex items-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-[var(--muted)]">이전 기도</span>
+            )}
+            {nextPrayer ? (
+              <Link
+                href={`/prayers/${nextPrayer.slug}`}
+                prefetch
+                className="touch-target rounded-xl border border-[var(--border)] px-4 py-2.5 active:opacity-70"
+                aria-disabled={navPending}
+                onClick={(event) => {
+                  event.preventDefault();
+                  goToPrayer(nextPrayer.slug);
+                }}
               >
                 다음 기도
-              </button>
-            ) : null}
+              </Link>
+            ) : (
+              <span className="touch-target inline-flex items-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-[var(--muted)]">다음 기도</span>
+            )}
             <button
               type="button"
-              className="touch-target rounded-xl border border-[var(--border)] px-4 py-2.5"
-              onClick={() => router.push("/prayers")}
+              className="touch-target rounded-xl border border-[var(--border)] px-4 py-2.5 active:opacity-70"
+              onClick={() => {
+                cancelAutoStart();
+                setTocOpen(true);
+              }}
             >
               목차 이동
             </button>

@@ -28,7 +28,8 @@ export type RpcProgressSummary = {
 };
 
 export type RpcMutationResult = RpcProgressSummary & {
-  operation_id: string;
+  operation_id: string | null;
+  request_id?: string;
   affected_items: RpcAffectedItem[];
   total_changed: boolean;
   previous_total: number;

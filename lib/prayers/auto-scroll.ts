@@ -17,3 +17,27 @@ export function nextAutoScrollPosition(
 export function isManualScrollKey(key: string): boolean {
   return key === "ArrowDown" || key === "ArrowUp" || key === "PageDown" || key === "PageUp" || key === "Home" || key === "End" || key === " ";
 }
+
+export const AUTO_SCROLL_START_DELAY_MS = 1000;
+
+export function shouldStartAutoScroll(options: {
+  enabled: boolean;
+  prefsReady?: boolean;
+  restored: boolean;
+  visible: boolean;
+  overlayOpen: boolean;
+  cancelled: boolean;
+}): boolean {
+  return (
+    options.enabled &&
+    options.prefsReady !== false &&
+    options.restored &&
+    options.visible &&
+    !options.overlayOpen &&
+    !options.cancelled
+  );
+}
+
+export function hasAutoScrollDelayElapsed(elapsedMs: number, delayMs = AUTO_SCROLL_START_DELAY_MS): boolean {
+  return elapsedMs >= delayMs;
+}

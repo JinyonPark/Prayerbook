@@ -28,15 +28,18 @@ export async function POST(request: Request) {
   let email = identifier.kind === "email" ? identifier.email : "";
   if (identifier.kind === "loginId") {
     const admin = createAdminSupabaseClient();
-    const { data } = await admin
+    const { data, error } = await admin
       .from("user_login_ids")
       .select("auth_email")
-      .eq("login_id", identifier.loginId)
+      .eq("normalized_login_id", identifier.normalizedLoginId)
       .maybeSingle();
-    if (!data?.auth_email) {
+    const fallback = error
+      ? await admin.from("user_login_ids").select("auth_email").eq("login_id", identifier.normalizedLoginId).maybeSingle()
+      : { data };
+    if (!fallback.data?.auth_email) {
       return NextResponse.json({ error: AUTH_MESSAGES.loginFailed }, { status: 401 });
     }
-    email = data.auth_email;
+    email = fallback.data.auth_email;
   }
 
   if (identifier.kind === "email") {

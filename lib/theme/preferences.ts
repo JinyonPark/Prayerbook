@@ -82,9 +82,6 @@ export function applyThemeColor(theme: CachedPreferences["theme"]) {
     document.head.appendChild(apple);
   }
   apple.setAttribute("content", "black-translucent");
-  if (typeof window !== "undefined" && Math.min(window.innerWidth, window.innerHeight) < 1024) {
-    document.documentElement.style.setProperty("--safe-top", "max(env(safe-area-inset-top, 0px), 48px)");
-  }
 }
 
 export function applyPreferences(prefs: CachedPreferences) {
@@ -123,8 +120,5 @@ export const THEME_INIT_SCRIPT = `(() => {
       document.head.appendChild(apple);
     }
     apple.setAttribute("content", "black-translucent");
-    if (Math.min(window.innerWidth, window.innerHeight) < 1024) {
-      root.style.setProperty("--safe-top", "max(env(safe-area-inset-top, 0px), 48px)");
-    }
   } catch (e) {}
 })();`;

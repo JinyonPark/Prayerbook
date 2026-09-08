@@ -1,9 +1,13 @@
 export type AuthIdentifier =
   | { kind: "email"; email: string }
-  | { kind: "loginId"; loginId: string };
+  | { kind: "loginId"; loginId: string; normalizedLoginId: string };
 
-const LOGIN_ID_RE = /^[a-z0-9][a-z0-9._-]{2,19}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const LOGIN_ID_RE = /^[0-9a-z._가-힣-]+$/iu;
+
+export function normalizeLoginId(raw: string): string {
+  return raw.normalize("NFKC").trim().toLowerCase();
+}
 
 export function parseAuthIdentifier(raw: string): AuthIdentifier | { error: string } {
   const value = raw.trim();
@@ -17,17 +21,17 @@ export function parseAuthIdentifier(raw: string): AuthIdentifier | { error: stri
     }
     return { kind: "email", email };
   }
-  const loginId = value.toLowerCase();
-  if (!LOGIN_ID_RE.test(loginId)) {
-    return { error: "아이디는 3~20자의 영문, 숫자와 ., _, - 만 사용할 수 있습니다." };
+  const normalizedLoginId = normalizeLoginId(value);
+  if (/\s/.test(normalizedLoginId) || normalizedLoginId.length < 3 || normalizedLoginId.length > 30 || !LOGIN_ID_RE.test(normalizedLoginId)) {
+    return { error: "아이디는 3~30자의 한글, 영문, 숫자와 _, - 만 사용할 수 있습니다." };
   }
-  return { kind: "loginId", loginId };
+  return { kind: "loginId", loginId: value.trim(), normalizedLoginId };
 }
 
 export const SYNTHETIC_AUTH_DOMAIN = "id.prayerbook.app";
 
 export function syntheticAuthEmail(loginId: string): string {
-  return `u-${loginId}@${SYNTHETIC_AUTH_DOMAIN}`;
+  return `u-${normalizeLoginId(loginId)}@${SYNTHETIC_AUTH_DOMAIN}`;
 }
 
 export function isSyntheticAuthEmail(email: string): boolean {

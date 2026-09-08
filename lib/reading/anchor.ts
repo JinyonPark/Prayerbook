@@ -7,6 +7,26 @@ export type ReadingAnchor = {
   updated_at: string | null;
 };
 
+export function readingPersistEquals(
+  current: {
+    last_prayer_item_id: string | null;
+    scroll_ratio: number;
+    anchor_key?: string | null;
+    anchor_offset?: number | null;
+    last_opened_at: string | null;
+  } | null | undefined,
+  next: ReadingAnchor,
+): boolean {
+  if (!current) return false;
+  return (
+    current.last_prayer_item_id === next.last_prayer_item_id &&
+    current.scroll_ratio === next.scroll_ratio &&
+    (current.anchor_key ?? null) === next.anchor_key &&
+    (current.anchor_offset ?? null) === next.anchor_offset &&
+    current.last_opened_at === next.last_opened_at
+  );
+}
+
 export function captureReadingAnchor(article: HTMLElement | null): { anchorKey: string | null; anchorOffset: number | null } {
   if (!article) return { anchorKey: null, anchorOffset: null };
   const nodes = [...article.querySelectorAll<HTMLElement>("[data-prayer-anchor]")];

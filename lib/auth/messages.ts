@@ -1,6 +1,6 @@
 export const AUTH_MESSAGES = {
   loginFailed: "이메일 또는 비밀번호를 확인해 주세요.",
-  network: "서버에 연결할 수 없습니다.\n인터넷 연결을 확인한 후 다시 시도해 주세요.",
+  network: "인터넷에 연결할 수 없습니다.\n연결 상태를 확인한 후 다시 시도해 주세요.",
   rateLimit: "요청이 너무 많습니다.\n잠시 후 다시 시도해 주세요.",
   unconfirmed:
     "이메일 인증이 완료되지 않았습니다.\n가입 시 입력한 이메일에서 인증 링크를 확인해 주세요.",
@@ -15,6 +15,8 @@ export const AUTH_MESSAGES = {
   passwordChanged: "비밀번호가 변경되었습니다.\n새 비밀번호로 다시 로그인해 주세요.",
   otherEmail:
     "다른 이메일로 가입했다면 가입에 사용한 이메일 주소로 다시 시도해 주세요.",
+  noRecovery:
+    "복구 수단이 등록되어 있지 않습니다.\n로그인 가능한 상태에서 이메일 또는 소셜 계정을 연결해 주세요.",
   invalidEmail: "이메일 형식이 올바르지 않습니다.",
   emptyEmail: "이메일을 입력해 주세요.",
   emptyPassword: "비밀번호를 입력해 주세요.",

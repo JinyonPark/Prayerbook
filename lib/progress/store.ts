@@ -1,4 +1,5 @@
-import { calculateProgressFromItems, type PrayerCountItem, type ProgressSummary } from "@/lib/progress/calculate";
+import { calculateProgressFromItems, isProgressEligible, type PrayerCountItem, type ProgressSummary } from "@/lib/progress/calculate";
+import { type SpousePrayerSelection } from "@/lib/progress/spouse";
 import {
   summarizeDailyCompletions,
   type DailyOperationRecord,
@@ -34,6 +35,7 @@ type UserState = {
   items: PrayerCountItem[];
   operations: Map<string, MutationResult>;
   activity: DailyOperationRecord[];
+  spouseSelection?: SpousePrayerSelection;
 };
 
 export class InMemoryProgressStore {
@@ -41,7 +43,7 @@ export class InMemoryProgressStore {
 
   constructor(private readonly catalog: PrayerCountItem[]) {}
 
-  seedUser(userId: string, counts: Record<string, number> = {}) {
+  seedUser(userId: string, counts: Record<string, number> = {}, spouseSelection: SpousePrayerSelection = null) {
     this.users.set(userId, {
       items: this.catalog.map((item) => ({
         ...item,
@@ -49,6 +51,7 @@ export class InMemoryProgressStore {
       })),
       operations: new Map(),
       activity: [],
+      spouseSelection,
     });
   }
 
@@ -61,11 +64,16 @@ export class InMemoryProgressStore {
   }
 
   summary(userId: string): ProgressSummary {
-    return calculateProgressFromItems(this.state(userId).items);
+    const state = this.state(userId);
+    return calculateProgressFromItems(state.items, state.spouseSelection ?? null);
   }
 
   activity(userId: string): DailyOperationRecord[] {
     return this.state(userId).activity.map((item) => ({ ...item }));
+  }
+
+  completionCount(userId: string, prayerItemId: string): number {
+    return this.state(userId).items.find((item) => item.id === prayerItemId)?.completionCount ?? 0;
   }
 
   dailySummary(
@@ -97,6 +105,7 @@ export class InMemoryProgressStore {
       const target = items.find((item) => item.id === prayerItemId);
       if (!target) throw new Error("PRAYER_NOT_FOUND");
       const before = target.completionCount;
+      if (before === newCount) return [];
       target.completionCount = newCount;
       return [{ prayerItemId, beforeCount: before, afterCount: newCount }];
     }, createdAt);
@@ -107,17 +116,19 @@ export class InMemoryProgressStore {
       const target = items.find((item) => item.id === prayerItemId);
       if (!target) throw new Error("PRAYER_NOT_FOUND");
       const before = target.completionCount;
+      if (before === 0) return [];
       target.completionCount = 0;
       return [{ prayerItemId, beforeCount: before, afterCount: 0 }];
     }, createdAt);
   }
 
   resetCurrentRound(userId: string, clientEventId: string, createdAt?: Date): MutationResult {
-    return this.mutate(userId, clientEventId, "current_round_reset", (items) => {
-      const totalCompleted = calculateProgressFromItems(items).totalCompleted;
+    return this.mutate(userId, clientEventId, "current_round_reset", (items, spouse) => {
+      const totalCompleted = calculateProgressFromItems(items, spouse).totalCompleted;
       const affected: AffectedItem[] = [];
       for (const item of items) {
-        if (item.category === "main" && item.completionCount > totalCompleted) {
+        if (!isProgressEligible(item, spouse)) continue;
+        if (item.completionCount > totalCompleted) {
           affected.push({
             prayerItemId: item.id,
             beforeCount: item.completionCount,
@@ -134,7 +145,7 @@ export class InMemoryProgressStore {
     return this.mutate(userId, clientEventId, "main_full_reset", (items) => {
       const affected: AffectedItem[] = [];
       for (const item of items) {
-        if (item.category === "main") {
+        if (item.category === "main" && item.completionCount > 0) {
           affected.push({
             prayerItemId: item.id,
             beforeCount: item.completionCount,
@@ -151,12 +162,14 @@ export class InMemoryProgressStore {
     return this.mutate(userId, clientEventId, "all_full_reset", (items) => {
       const affected: AffectedItem[] = [];
       for (const item of items) {
-        affected.push({
-          prayerItemId: item.id,
-          beforeCount: item.completionCount,
-          afterCount: 0,
-        });
-        item.completionCount = 0;
+        if (item.completionCount > 0) {
+          affected.push({
+            prayerItemId: item.id,
+            beforeCount: item.completionCount,
+            afterCount: 0,
+          });
+          item.completionCount = 0;
+        }
       }
       return affected;
     }, createdAt);
@@ -169,14 +182,14 @@ export class InMemoryProgressStore {
     return this.mutate(userId, clientEventId, "bulk_set", (items) => {
       const affected: AffectedItem[] = [];
       for (const item of items) {
-        if (item.category === "main") {
-          affected.push({
-            prayerItemId: item.id,
-            beforeCount: item.completionCount,
-            afterCount: newCount,
-          });
-          item.completionCount = newCount;
-        }
+        if (item.category !== "main") continue;
+        if (item.completionCount === newCount) continue;
+        affected.push({
+          prayerItemId: item.id,
+          beforeCount: item.completionCount,
+          afterCount: newCount,
+        });
+        item.completionCount = newCount;
       }
       return affected;
     }, createdAt);
@@ -186,7 +199,7 @@ export class InMemoryProgressStore {
     userId: string,
     clientEventId: string,
     operationType: OperationType,
-    apply: (items: PrayerCountItem[]) => AffectedItem[],
+    apply: (items: PrayerCountItem[], spouse: SpousePrayerSelection) => AffectedItem[],
     createdAt?: Date,
   ): MutationResult {
     const state = this.state(userId);
@@ -198,7 +211,7 @@ export class InMemoryProgressStore {
     const previous = this.summary(userId);
     const snapshot = state.items.map((item) => ({ ...item }));
     try {
-      const affected = apply(state.items);
+      const affected = apply(state.items, state.spouseSelection ?? null);
       const current = this.summary(userId);
       const result: MutationResult = {
         ...current,

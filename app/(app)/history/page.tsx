@@ -10,8 +10,8 @@ export const dynamic = "force-dynamic";
 export default async function HistoryPage() {
   if (!hasPublicEnv()) {
     return (
-      <AppShell title="기록">
-        <p>환경 변수가 없어 기록을 불러올 수 없습니다.</p>
+      <AppShell title="횟수 수정·초기화 이력">
+        <p>환경 변수가 없어 이력을 불러올 수 없습니다.</p>
       </AppShell>
     );
   }
@@ -21,6 +21,7 @@ export default async function HistoryPage() {
   const { data } = await supabase
     .from("prayer_progress_operations")
     .select("id, operation_type, created_at, prayer_progress_operation_items(prayer_item_id, before_count, after_count)")
+    .neq("operation_type", "complete")
     .order("created_at", { ascending: false })
     .limit(40);
 
@@ -41,7 +42,7 @@ export default async function HistoryPage() {
   }));
 
   return (
-    <AppShell title="기록">
+    <AppShell title="횟수 수정·초기화 이력">
       <HistoryView operations={operations} />
     </AppShell>
   );

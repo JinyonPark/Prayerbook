@@ -129,3 +129,16 @@ export async function rpcDeleteAllHistory(supabase: SupabaseClient): Promise<voi
   const { error } = await supabase.rpc("delete_all_history");
   if (error) throw error;
 }
+
+export async function rpcSavePrayerInputs(
+  supabase: SupabaseClient,
+  prayerItemId: string,
+  values: Record<string, unknown>,
+) {
+  const { data, error } = await supabase.rpc("save_prayer_inputs", {
+    prayer_item_id: prayerItemId,
+    values,
+  });
+  if (error) throw error;
+  return data as { prayer_item_id: string; values: Record<string, unknown> };
+}

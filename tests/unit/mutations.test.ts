@@ -135,4 +135,23 @@ describe("횟수 수정 및 초기화", () => {
     expect(again.idempotent).toBe(true);
     expect(again.affectedItems[0]?.afterCount).toBe(1);
   });
+
+  it("같은 횟수로 수정하면 상세 이력을 만들지 않는다", () => {
+    const store = new InMemoryProgressStore(catalog());
+    store.seedUser("a", { m1: 5 });
+    const result = store.setCount("a", "m1", 5, crypto.randomUUID());
+    expect(result.affectedItems).toHaveLength(0);
+  });
+
+  it("남편 선택 시 현재 독수 초기화가 아내 기도 횟수를 유지한다", () => {
+    const counts: Record<string, number> = {};
+    for (let i = 1; i <= MAIN_PRAYER_COUNT; i += 1) counts[`m${i}`] = 3;
+    counts.m10 = 10;
+    counts.m1 = 5;
+    const store = new InMemoryProgressStore(catalog());
+    store.seedUser("a", counts, "husband");
+    store.resetCurrentRound("a", crypto.randomUUID());
+    expect(store.summary("a").totalCompleted).toBe(3);
+    expect(store.completionCount("a", "m10")).toBe(10);
+  });
 });

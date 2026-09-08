@@ -1,23 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { eligibleCountFromSummary, findNextIncomplete } from "@/lib/progress/calculate";
 import { formatScrollPercent } from "@/lib/reading/scroll-ratio";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { InstallCard } from "@/components/pwa/InstallCard";
 import { OfflineBanner } from "@/components/pwa/ServiceWorkerRegistrar";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
 import { useAppState } from "@/components/providers/AppProviders";
 import { parseSpousePrayerSelection } from "@/lib/progress/spouse";
 import type { PrayerItemRecord } from "@/lib/prayers/markdown";
 import { TodayPrayerCard } from "@/components/dashboard/TodayPrayerCard";
-import { useEffect } from "react";
+
+const InstallCard = dynamic(() => import("@/components/pwa/InstallCard").then((mod) => ({ default: mod.InstallCard })), {
+  ssr: false,
+  loading: () => null,
+});
 
 export function DashboardView({ prayers }: { prayers: PrayerItemRecord[] }) {
-  const { summary, reading, online, spouseSelection, refreshDaily } = useAppState();
-  useEffect(() => {
-    void refreshDaily();
-  }, [refreshDaily]);
+  const { summary, reading, online, spouseSelection } = useAppState();
   const selection = parseSpousePrayerSelection(summary?.spouse_prayer_selection) ?? spouseSelection;
   const total = summary?.total_completed ?? 0;
   const round = summary?.current_round ?? 1;
@@ -75,7 +76,7 @@ export function DashboardView({ prayers }: { prayers: PrayerItemRecord[] }) {
             {lastPrayer.title}
           </p>
           <p className="text-[var(--muted)]">본문 {formatScrollPercent(reading.scroll_ratio)} 지점</p>
-          <Link href={`/prayers/${lastPrayer.slug}`} className="touch-target mt-3 inline-flex rounded-xl bg-[var(--accent)] px-4 py-2.5 text-[var(--accent-text)]">
+          <Link href={`/prayers/${lastPrayer.slug}`} prefetch className="touch-target mt-3 inline-flex rounded-xl bg-[var(--accent)] px-4 py-2.5 text-[var(--accent-text)] active:opacity-70">
             계속 기도하기
           </Link>
         </section>
@@ -96,7 +97,7 @@ export function DashboardView({ prayers }: { prayers: PrayerItemRecord[] }) {
             {nextPrayer.item_number ? `${nextPrayer.item_number}. ` : ""}
             {nextPrayer.title}
           </p>
-          <Link href={`/prayers/${nextPrayer.slug}`} className="touch-target mt-3 inline-flex rounded-xl border border-[var(--border)] px-4 py-2.5">
+          <Link href={`/prayers/${nextPrayer.slug}`} prefetch className="touch-target mt-3 inline-flex rounded-xl border border-[var(--border)] px-4 py-2.5 active:opacity-70">
             기도문 열기
           </Link>
         </section>
