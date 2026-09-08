@@ -14,6 +14,7 @@ import {
   applyPreferences,
   defaultPreferences,
   parseAutoScrollEnabled,
+  parseConceivedShowAllNames,
   readCachedPreferences,
   writeCachedPreferences,
   type CachedPreferences,
@@ -69,6 +70,9 @@ function prefsFromServer(initialPrefs: UserPreferences | null, cached: CachedPre
       cached.autoScrollEnabled === true
         ? true
         : parseAutoScrollEnabled(initialPrefs.auto_scroll_enabled ?? cached.autoScrollEnabled),
+    conceivedShowAllNames: parseConceivedShowAllNames(
+      initialPrefs.conceived_show_all_names ?? cached.conceivedShowAllNames,
+    ),
   };
 }
 
@@ -84,6 +88,7 @@ function preferenceUpsertRow(
     line_height: prefs.lineHeight,
     auto_scroll_speed: prefs.autoScrollSpeed,
     auto_scroll_enabled: prefs.autoScrollEnabled,
+    conceived_show_all_names: prefs.conceivedShowAllNames,
     spouse_prayer_selection: extra.spouse_prayer_selection,
     time_zone: extra.time_zone,
   };

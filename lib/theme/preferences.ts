@@ -7,6 +7,7 @@ export type CachedPreferences = {
   lineHeight: "compact" | "comfortable" | "spacious";
   autoScrollSpeed: "slow" | "normal" | "fast";
   autoScrollEnabled: boolean;
+  conceivedShowAllNames: boolean;
 };
 
 export const defaultPreferences: CachedPreferences = {
@@ -15,6 +16,7 @@ export const defaultPreferences: CachedPreferences = {
   lineHeight: "comfortable",
   autoScrollSpeed: "normal",
   autoScrollEnabled: false,
+  conceivedShowAllNames: false,
 };
 
 export const DAY_STATUS_BAR = "#3f5c4b";
@@ -33,6 +35,10 @@ export function parseAutoScrollEnabled(value: unknown): boolean {
   return value === true || value === "true";
 }
 
+export function parseConceivedShowAllNames(value: unknown): boolean {
+  return value === true || value === "true";
+}
+
 export function readCachedPreferences(): CachedPreferences {
   if (typeof window === "undefined") return defaultPreferences;
   try {
@@ -41,6 +47,7 @@ export function readCachedPreferences(): CachedPreferences {
     const parsed = JSON.parse(raw) as Partial<CachedPreferences> & {
       auto_scroll_speed?: string;
       auto_scroll_enabled?: boolean;
+      conceived_show_all_names?: boolean;
     };
     return {
       theme: parsed.theme === "night" ? "night" : "day",
@@ -52,6 +59,9 @@ export function readCachedPreferences(): CachedPreferences {
         : "comfortable",
       autoScrollSpeed: parseAutoScrollSpeed(parsed.autoScrollSpeed ?? parsed.auto_scroll_speed),
       autoScrollEnabled: parseAutoScrollEnabled(parsed.autoScrollEnabled ?? parsed.auto_scroll_enabled),
+      conceivedShowAllNames: parseConceivedShowAllNames(
+        parsed.conceivedShowAllNames ?? parsed.conceived_show_all_names,
+      ),
     };
   } catch {
     return defaultPreferences;

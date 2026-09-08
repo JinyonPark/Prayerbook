@@ -25,9 +25,12 @@ export type PersonalizationConfig = {
   nameLabel?: string;
   honorific?: "씨";
   maxNames?: number;
+  bulkNames?: boolean;
   hasIntercession: boolean;
   intercessionLabel?: string;
 };
+
+export const CONCEIVED_GROUP_LABEL = "태신자들";
 
 export const PERSONALIZATION_PRAYERS: PersonalizationConfig[] = [
   {
@@ -51,8 +54,9 @@ export const PERSONALIZATION_PRAYERS: PersonalizationConfig[] = [
     itemNumber: 6,
     title: "태신자를 위한 기도",
     hasNames: true,
-    nameLabel: "태신자 이름",
+    nameLabel: "태신자 이름 (여러 명)",
     honorific: "씨",
+    bulkNames: true,
     hasIntercession: false,
   },
   {
@@ -60,7 +64,8 @@ export const PERSONALIZATION_PRAYERS: PersonalizationConfig[] = [
     itemNumber: 7,
     title: "사람을 위한 기도",
     hasNames: true,
-    nameLabel: "이름",
+    nameLabel: "이름 (여러 명)",
+    bulkNames: true,
     hasIntercession: true,
     intercessionLabel: "그 사람을 위한 중보기도",
   },
@@ -98,6 +103,7 @@ export const PERSONALIZATION_PRAYERS: PersonalizationConfig[] = [
     title: "자녀를 위한 기도",
     hasNames: true,
     nameLabel: "자녀 이름 (여러 명)",
+    bulkNames: true,
     hasIntercession: true,
     intercessionLabel: "자녀를 위한 중보기도",
   },
@@ -115,6 +121,10 @@ const INTERCESSION_BLOCK: Record<string, RegExp> = {
 
 export function personalizationConfig(slug: string): PersonalizationConfig | undefined {
   return PERSONALIZATION_PRAYERS.find((item) => item.slug === slug);
+}
+
+export function usesBulkNames(slug: string): boolean {
+  return Boolean(personalizationConfig(slug)?.bulkNames);
 }
 
 export function namesFor(rows: PersonalizationRow[], slug: string): PersonalizationRow[] {
@@ -177,6 +187,49 @@ function eunNeun(name: string): string {
   return `${name}${hasBatchim(name) ? "은" : "는"}`;
 }
 
+function labeledNameList(names: string[], honorific?: "씨"): { name: string; labeled: string } {
+  const last = lastNameForParticle(names);
+  const prefix = names.length > 1 ? `${formatNameList(names.slice(0, -1))}, ` : "";
+  const name = `${prefix}${last}`;
+  return { name, labeled: honorific ? `${name}${honorific}` : name };
+}
+
+function replaceRemainingWithGroup(markdown: string, group: string): string {
+  const replacements: Array<[RegExp, string]> = [
+    [/\(태신자 이름\)\s*씨/g, group],
+    [/\(태신자 이름\)/g, group],
+    [/ㅇㅇㅇ씨가/g, iGa(group)],
+    [/ㅇㅇㅇ씨에게/g, `${group}에게`],
+    [/ㅇㅇㅇ씨의/g, `${group}의`],
+    [/ㅇㅇㅇ씨를/g, eulReul(group)],
+    [/ㅇㅇㅇ씨도/g, `${group}도`],
+    [/ㅇㅇㅇ씨는/g, eunNeun(group)],
+    [/ㅇㅇㅇ씨/g, group],
+    [/\(ㅇㅇㅇ를 위한 중보기도\)/g, `(${eulReul(group)} 위한 중보기도)`],
+    [/\(ㅇㅇㅇ\)를/g, eulReul(group)],
+    [/\(ㅇㅇㅇ\)/g, group],
+    [/ㅇㅇㅇ에게/g, `${group}에게`],
+    [/ㅇㅇㅇ의/g, `${group}의`],
+    [/ㅇㅇㅇ을/g, eulReul(group)],
+    [/ㅇㅇㅇ를/g, eulReul(group)],
+    [/ㅇㅇㅇ가/g, iGa(group)],
+    [/ㅇㅇㅇ는/g, eunNeun(group)],
+    [/ㅇㅇㅇ이/g, iGa(group)],
+    [/ㅇㅇㅇ/g, group],
+  ];
+  let next = markdown;
+  for (const [pattern, value] of replacements) {
+    next = next.replace(pattern, value);
+  }
+  return next;
+}
+
+export function replaceConceivedNamesFirstThenGroup(markdown: string, names: string[], honorific?: "씨"): string {
+  const { labeled } = labeledNameList(names, honorific);
+  const first = markdown.replace(/\(태신자 이름\)\s*씨|\(태신자 이름\)/, labeled);
+  return replaceRemainingWithGroup(first, CONCEIVED_GROUP_LABEL);
+}
+
 function replaceNamePlaceholders(markdown: string, names: string[], honorific?: "씨"): string {
   if (names.length === 0) return markdown;
   const last = lastNameForParticle(names);
@@ -221,7 +274,12 @@ function replaceNamePlaceholders(markdown: string, names: string[], honorific?: 
 export function applyPersonalization(
   markdown: string,
   slug: string,
-  options: { name?: string | null; names?: string[]; intercession?: string | null },
+  options: {
+    name?: string | null;
+    names?: string[];
+    intercession?: string | null;
+    nameRepeat?: "first" | "all";
+  },
 ): string {
   let next = markdown;
   const intercession = options.intercession?.trim();
@@ -239,7 +297,11 @@ export function applyPersonalization(
       : [];
   if (names.length > 0) {
     const config = personalizationConfig(slug);
-    next = replaceNamePlaceholders(next, names, config?.honorific);
+    if (slug === "conceived-believer" && names.length > 1 && options.nameRepeat !== "all") {
+      next = replaceConceivedNamesFirstThenGroup(next, names, config?.honorific);
+    } else {
+      next = replaceNamePlaceholders(next, names, config?.honorific);
+    }
   }
   return next;
 }

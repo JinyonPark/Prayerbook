@@ -13,7 +13,7 @@ import { ReaderNavLink } from "@/components/prayer/ReaderNavLink";
 import { useAppState } from "@/components/providers/AppProviders";
 import { isAuthFailure, logDevError } from "@/lib/errors/inspect";
 import { toCompleteUserMessage } from "@/lib/errors/user-message";
-import { applyPersonalization, applyPrayerInputValues, intercessionFor, namesFor, personalizationConfig } from "@/lib/prayers/personalize";
+import { applyPersonalization, applyPrayerInputValues, intercessionFor, namesFor, personalizationConfig, usesBulkNames } from "@/lib/prayers/personalize";
 import type { PrayerItemRecord } from "@/lib/prayers/markdown";
 import { AUTO_SCROLL_PX_PER_SECOND, type PrayerInputValues } from "@/lib/prayers/inputs";
 import { captureReadingAnchor, readingPersistEquals, restoreReadingAnchor } from "@/lib/reading/anchor";
@@ -87,7 +87,13 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const intercession = intercessionFor(personalizations, prayer.slug);
   const personalize = personalizationConfig(prayer.slug);
   const inputValues = prayerInputs.find((row) => row.prayer_item_id === prayer.id)?.values ?? {};
-  const childNames = prayer.slug === "children" ? (inputValues.child_names?.length ? inputValues.child_names : nameRows.map((row) => row.value)) : null;
+  const bulkNameList = usesBulkNames(prayer.slug)
+    ? prayer.slug === "children"
+      ? inputValues.child_names?.length
+        ? inputValues.child_names
+        : nameRows.map((row) => row.value)
+      : nameRows.map((row) => row.value)
+    : null;
   const [focusName, setFocusName] = useState(nameRows[0]?.value ?? "");
   const overlayOpen = tocOpen || celebration !== null || inputEditorOpen;
   const overlayOpenRef = useRef(overlayOpen);
@@ -110,18 +116,23 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const doneThisRound = prayer.category === "main" && !excluded ? count >= round : false;
   const numberedTitle = `${prayer.item_number ? `${prayer.item_number}. ` : ""}${prayer.title}`;
   const chromeShown = chromeVisible && !autoRunning;
-  const appliedNames = childNames ?? (focusName || nameRows[0]?.value ? [focusName || nameRows[0]?.value] : []);
+  const appliedNames = bulkNameList?.length
+    ? bulkNameList
+    : focusName || nameRows[0]?.value
+      ? [focusName || nameRows[0]?.value]
+      : [];
   const displayMarkdown = applyPrayerInputValues(
     applyPersonalization(prayer.content_md, prayer.slug, {
       names: appliedNames.filter(Boolean) as string[],
       intercession: intercession?.value ?? null,
+      nameRepeat: prefs.conceivedShowAllNames ? "all" : "first",
     }),
     prayer.slug,
     inputValues,
   );
 
   useEffect(() => {
-    if (prayer.slug === "children") return;
+    if (usesBulkNames(prayer.slug)) return;
     const names = namesFor(personalizations, prayer.slug).map((row) => row.value);
     if (names.length === 0) {
       setFocusName("");
@@ -649,20 +660,25 @@ export function PrayerReader({ prayer, prayers }: Props) {
         </div>
 
         <div className="relative z-10 mx-auto mt-6 max-w-[760px] space-y-3 pb-[calc(7rem+var(--safe-bottom))] lg:pb-8">
-          {prayer.slug === "children" ? (
+          {usesBulkNames(prayer.slug) ? (
             <div className="space-y-1 text-sm text-[var(--muted)]">
-              {childNames && childNames.length > 0 ? <p>자녀 이름: {childNames.join(", ")}</p> : <p>저장된 자녀 이름이 없습니다.</p>}
+              {bulkNameList && bulkNameList.length > 0 ? (
+                <p>
+                  {prayer.slug === "children" ? "자녀 이름" : prayer.slug === "conceived-believer" ? "태신자 이름" : "이름"}:{" "}
+                  {bulkNameList.join(", ")}
+                </p>
+              ) : (
+                <p>저장된 이름이 없습니다.</p>
+              )}
               <p>
-                자녀 이름은 설정에서만 수정할 수 있습니다.{" "}
+                이름은 설정에서만 수정할 수 있습니다.{" "}
                 <Link href="/settings/personalize" className="underline">
                   이름·중보기도 관리
                 </Link>
               </p>
             </div>
-          ) : childNames && childNames.length > 0 ? (
-            <p className="text-sm text-[var(--muted)]">기도 이름: {childNames.join(", ")}</p>
           ) : null}
-          {prayer.slug !== "children" && nameRows.length > 1 ? (
+          {!usesBulkNames(prayer.slug) && nameRows.length > 1 ? (
             <label className="flex items-center gap-2 text-sm">
               <span className="shrink-0 text-[var(--muted)]">기도할 이름</span>
               <select

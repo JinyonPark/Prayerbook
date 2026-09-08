@@ -53,6 +53,7 @@ export type UserPreferences = {
   spouse_prayer_selection?: "husband" | "wife" | null;
   auto_scroll_speed?: "slow" | "normal" | "fast";
   auto_scroll_enabled?: boolean;
+  conceived_show_all_names?: boolean;
   time_zone?: string;
 };
 

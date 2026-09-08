@@ -14,7 +14,7 @@ import { parseNameList, type PrayerInputValues } from "@/lib/prayers/inputs";
 import { PERSONALIZATION_ITEM_IDS } from "@/lib/prayers/known-ids";
 
 export function PersonalizeView() {
-  const { online, prayerInputs, savePrayerInputs } = useAppState();
+  const { online, prayerInputs, savePrayerInputs, prefs, updatePrefs } = useAppState();
   const personalizations = personalizationRowsFromInputs(prayerInputs);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
@@ -39,7 +39,7 @@ export function PersonalizeView() {
   return (
     <div className="space-y-4">
       <p className="text-[var(--muted)]">
-        여기서 저장한 이름과 중보기도가 해당 기도문 본문에 자연스럽게 들어갑니다. 자녀 이름은 여러 명을 한 번에 입력하며, 기도문 화면에서 함께 표시됩니다.
+        여기서 저장한 이름과 중보기도가 해당 기도문 본문에 자연스럽게 들어갑니다. 자녀, 태신자, 사람을 위한 기도는 이름을 여러 명 한 번에 입력합니다.
       </p>
       {!online ? <p>인터넷 연결이 필요합니다. 연결 후 저장할 수 있습니다.</p> : null}
       {error ? <p role="alert">{error}</p> : null}
@@ -51,6 +51,8 @@ export function PersonalizeView() {
           intercession={intercessionFor(personalizations, prayer.slug)?.value ?? ""}
           pending={pending}
           disabled={!online || pending !== null}
+          conceivedShowAllNames={prefs.conceivedShowAllNames}
+          onToggleConceivedShowAllNames={(value) => void updatePrefs({ conceivedShowAllNames: value })}
           onSaveNames={(names) => {
             const current = valuesFor(prayer.slug);
             const next: PrayerInputValues = { ...current };
@@ -68,12 +70,22 @@ export function PersonalizeView() {
   );
 }
 
+function bulkNameHint(slug: string): string {
+  if (slug === "children") return "자녀 이름을 여러 명 한 번에 입력합니다. 줄바꿈이나 쉼표로 구분하며, 기도문에는 함께 표시됩니다.";
+  if (slug === "conceived-believer") {
+    return "태신자 이름을 여러 명 한 번에 입력합니다. 줄바꿈이나 쉼표로 구분합니다. 아래 설정에서 이름을 매번 전부 넣을지, 처음만 넣고 나머지는 ‘태신자들’로 이을지 고를 수 있습니다.";
+  }
+  return "이름을 여러 명 한 번에 입력합니다. 줄바꿈이나 쉼표로 구분하며, 기도문에는 함께 표시됩니다.";
+}
+
 function PrayerEditor({
   prayer,
   names,
   intercession,
   pending,
   disabled,
+  conceivedShowAllNames,
+  onToggleConceivedShowAllNames,
   onSaveNames,
   onSaveIntercession,
 }: {
@@ -82,6 +94,8 @@ function PrayerEditor({
   intercession: string;
   pending: string | null;
   disabled: boolean;
+  conceivedShowAllNames: boolean;
+  onToggleConceivedShowAllNames: (value: boolean) => void;
   onSaveNames: (names: string[]) => void;
   onSaveIntercession: (value: string) => void;
 }) {
@@ -90,8 +104,9 @@ function PrayerEditor({
   const [intercessionDraft, setIntercessionDraft] = useState<string | null>(null);
   const atNameLimit = Boolean(prayer.maxNames && names.length >= prayer.maxNames);
   const intercessionValue = intercessionDraft ?? intercession;
-  const parsedNames = prayer.slug === "children" ? parseNameList(nameDraft) : names;
+  const parsedNames = prayer.bulkNames ? parseNameList(nameDraft).slice(0, 20) : names;
   const namesKey = names.join("\n");
+  const namePending = pending === `${prayer.slug}-name`;
 
   useEffect(() => {
     setNameDraft(namesKey);
@@ -102,20 +117,45 @@ function PrayerEditor({
       <h2 className="text-lg font-semibold">
         {prayer.itemNumber}. {prayer.title}
       </h2>
-      {prayer.slug === "children" ? (
+      {prayer.bulkNames ? (
         <div className="mt-4 space-y-3">
-          <p className="text-sm text-[var(--muted)]">자녀 이름을 여러 명 한 번에 입력합니다. 기도문에는 함께 표시됩니다.</p>
+          <p className="text-sm text-[var(--muted)]">{bulkNameHint(prayer.slug)}</p>
           <textarea
             className="min-h-32 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2"
             value={nameDraft}
-            maxLength={1000}
+            maxLength={2000}
             disabled={disabled}
             onChange={(event) => setNameDraft(event.target.value)}
           />
           {parsedNames.length > 0 ? <p className="text-sm">표시: {parsedNames.join(", ")}</p> : <p className="text-sm">아직 저장된 이름이 없습니다.</p>}
-          <Button disabled={disabled || pending === "children-name"} onClick={() => onSaveNames(parsedNames)}>
-            {pending === "children-name" ? "저장 중" : "저장"}
+          <Button disabled={disabled || namePending} onClick={() => onSaveNames(parsedNames)}>
+            {namePending ? "저장 중" : "저장"}
           </Button>
+          {prayer.slug === "conceived-believer" ? (
+            <fieldset>
+              <legend className="mb-2 text-sm text-[var(--muted)]">태신자 이름 표시</legend>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={!conceivedShowAllNames ? "primary" : "secondary"}
+                  aria-pressed={!conceivedShowAllNames}
+                  disabled={disabled}
+                  onClick={() => onToggleConceivedShowAllNames(false)}
+                >
+                  처음만 전부 표시
+                </Button>
+                <Button
+                  type="button"
+                  variant={conceivedShowAllNames ? "primary" : "secondary"}
+                  aria-pressed={conceivedShowAllNames}
+                  disabled={disabled}
+                  onClick={() => onToggleConceivedShowAllNames(true)}
+                >
+                  매번 전부 표시
+                </Button>
+              </div>
+            </fieldset>
+          ) : null}
         </div>
       ) : prayer.hasNames ? (
         <div className="mt-4 space-y-3">

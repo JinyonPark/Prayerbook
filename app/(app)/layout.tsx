@@ -46,7 +46,7 @@ async function AppDataProviders({ children }: { children: React.ReactNode }) {
     })),
     supabase
       .from("user_preferences")
-      .select("theme, font_size, line_height, spouse_prayer_selection, auto_scroll_speed, auto_scroll_enabled, time_zone")
+      .select("theme, font_size, line_height, spouse_prayer_selection, auto_scroll_speed, auto_scroll_enabled, conceived_show_all_names, time_zone")
       .eq("user_id", user.id)
       .maybeSingle(),
     supabase
@@ -56,13 +56,22 @@ async function AppDataProviders({ children }: { children: React.ReactNode }) {
       .maybeSingle(),
   ]);
 
-  const prefsResult = prefsResultRaw.error ? { data: null } : prefsResultRaw;
+  const prefsFallback =
+    prefsResultRaw.error
+      ? await supabase
+          .from("user_preferences")
+          .select("theme, font_size, line_height, spouse_prayer_selection, auto_scroll_speed, auto_scroll_enabled, time_zone")
+          .eq("user_id", user.id)
+          .maybeSingle()
+      : prefsResultRaw;
+  const prefsResult = prefsFallback.error ? { data: null } : prefsFallback;
   const readingResult = readingResultRaw.error ? { data: null } : readingResultRaw;
 
   const prefs = prefsResult.data as (UserPreferences & {
     spouse_prayer_selection?: string | null;
     auto_scroll_speed?: string;
     auto_scroll_enabled?: boolean;
+    conceived_show_all_names?: boolean;
     time_zone?: string;
   }) | null;
   const timeZone = normalizeTimeZone(prefs?.time_zone ?? DEFAULT_TIME_ZONE);

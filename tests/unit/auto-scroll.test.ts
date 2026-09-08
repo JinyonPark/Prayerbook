@@ -43,6 +43,7 @@ describe("자동 스크롤", () => {
 
   it("설정 기본값은 꺼짐이다", () => {
     expect(defaultPreferences.autoScrollEnabled).toBe(false);
+    expect(defaultPreferences.conceivedShowAllNames).toBe(false);
     expect(parseAutoScrollEnabled(undefined)).toBe(false);
     expect(parseAutoScrollEnabled(null)).toBe(false);
     expect(parseAutoScrollEnabled(false)).toBe(false);

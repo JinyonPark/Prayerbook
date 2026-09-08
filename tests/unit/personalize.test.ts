@@ -67,4 +67,40 @@ describe("기도문 개인화", () => {
     expect(result).not.toContain("(목장을 위한 중보 기도)");
     expect(result).toContain("5) 하나님! 다른 사람의 죄를 용서해 주시기 원합니다.");
   });
+
+  it("태신자가 여러 명이면 처음만 이름을 넣고 나머지는 태신자들로 잇는다", () => {
+    const source =
+      "하나님 아버지의 이름이 (태신자 이름) 씨를 통하여 거룩히 여김 받으시기를 원합니다. 그리고 ㅇㅇㅇ씨가 하나님의 이름을 거룩히 여기는 일들을 하기 원합니다. 하나님의 나라가 ㅇㅇㅇ씨에게 이루어지기를 원합니다. ㅇㅇㅇ씨를 통하여 전파되기를 원합니다. ㅇㅇㅇ씨의 마음속에 있는 악에서 ㅇㅇㅇ씨를 구원하여 주옵소서. ㅇㅇㅇ씨는 연약하오니 힘을 공급하여 주옵소서.";
+    const result = applyPersonalization(source, "conceived-believer", {
+      names: ["김철수", "이영희"],
+    });
+    expect(result).toContain("김철수, 이영희씨를 통하여");
+    expect(result).toContain("그리고 태신자들이");
+    expect(result).toContain("태신자들에게 이루어지기를");
+    expect(result).toContain("태신자들을 통하여");
+    expect(result).toContain("태신자들의 마음속에");
+    expect(result).toContain("태신자들은 연약하오니");
+    expect(result).not.toContain("ㅇㅇㅇ");
+    expect(result).not.toContain("태신자들씨");
+    expect(result).not.toContain("태신자들가");
+  });
+
+  it("설정이 매번 표시이면 태신자 이름을 모두 반복한다", () => {
+    const source =
+      "하나님 아버지의 이름이 (태신자 이름) 씨를 통하여 거룩히 여김 받으시기를 원합니다. 그리고 ㅇㅇㅇ씨가 하나님의 이름을 거룩히 여기는 일들을 하기 원합니다.";
+    const result = applyPersonalization(source, "conceived-believer", {
+      names: ["김철수", "이영희"],
+      nameRepeat: "all",
+    });
+    expect(result).toContain("김철수, 이영희씨를 통하여");
+    expect(result).toContain("김철수, 이영희씨가");
+    expect(result).not.toContain("태신자들");
+  });
+
+  it("사람을 위한 기도는 여러 이름을 함께 넣는다", () => {
+    const source = "하나님 아버지의 이름이 (ㅇㅇㅇ)를 통하여 거룩히 여김 받으시기를 원합니다. 그리고 ㅇㅇㅇ가 하나님의 이름을 거룩히 여기는 일을 찾아서 하기를 원합니다.";
+    const result = applyPersonalization(source, "faculties", { names: ["길동", "영희"] });
+    expect(result).toContain("길동, 영희를 통하여");
+    expect(result).toContain("그리고 길동, 영희가");
+  });
 });
