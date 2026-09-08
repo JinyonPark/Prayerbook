@@ -140,7 +140,7 @@ $$;
 
 create or replace function public.save_prayer_inputs(
   prayer_item_id uuid,
-  values jsonb
+  p_input_values jsonb
 )
 returns jsonb
 language plpgsql
@@ -163,7 +163,7 @@ begin
     raise exception 'PRAYER_NOT_FOUND' using errcode = 'P0002';
   end if;
 
-  v_values := public.internal_normalize_prayer_input_values(values);
+  v_values := public.internal_normalize_prayer_input_values(p_input_values);
 
   if v_values = '{}'::jsonb then
     delete from public.user_prayer_inputs

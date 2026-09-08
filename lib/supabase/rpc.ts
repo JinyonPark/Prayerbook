@@ -137,7 +137,7 @@ export async function rpcSavePrayerInputs(
 ) {
   const { data, error } = await supabase.rpc("save_prayer_inputs", {
     prayer_item_id: prayerItemId,
-    values,
+    p_input_values: values,
   });
   if (error) throw error;
   return data as { prayer_item_id: string; values: Record<string, unknown> };
