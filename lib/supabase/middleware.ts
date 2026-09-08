@@ -43,6 +43,10 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user && pathname.startsWith("/api/") && !isPublic) {
+    return NextResponse.json({ error: "AUTH_EXPIRED" }, { status: 401 });
+  }
+
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

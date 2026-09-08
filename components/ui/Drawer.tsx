@@ -55,7 +55,7 @@ export function Drawer({ open, title, onClose, children }: Props) {
 
   return (
     <div
-      className="fixed z-[110] lg:hidden"
+      className="fixed z-[300] lg:hidden"
       style={{
         top: "var(--visual-viewport-top, 0px)",
         height: "var(--visual-viewport-height, 100dvh)",

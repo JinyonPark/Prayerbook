@@ -7,12 +7,18 @@ import {
 } from "@/lib/errors/inspect";
 
 export const NETWORK_USER_MESSAGE = "인터넷에 연결할 수 없습니다.\n연결 상태를 확인한 후 다시 시도해 주세요.";
+export const SERVER_UNAVAILABLE_USER_MESSAGE = "서버에 연결할 수 없습니다.\n잠시 후 다시 시도해 주세요.";
 export const AUTH_EXPIRED_USER_MESSAGE = "로그인 시간이 만료되었습니다.\n다시 로그인해 주세요.";
 export const COMPLETE_SAVE_FAILED_MESSAGE = "기도 완료 기록을 저장하지 못했습니다.\n잠시 후 다시 시도해 주세요.";
 export const PRAYER_NOT_FOUND_USER_MESSAGE = "기도 정보를 확인하지 못했습니다.\n페이지를 다시 연 후 시도해 주세요.";
 export const RATE_LIMIT_USER_MESSAGE = "요청이 너무 많습니다.\n잠시 후 다시 시도해 주세요.";
 
 export function toCompleteUserMessage(error: unknown): string {
+  const info = inspectError(error);
+  const haystack = `${info.code} ${info.message}`.toLowerCase();
+  if (info.status === 503 || haystack.includes("server_unavailable") || haystack.includes("missing-env")) {
+    return SERVER_UNAVAILABLE_USER_MESSAGE;
+  }
   if (isNetworkFailure(error)) return NETWORK_USER_MESSAGE;
   if (isAuthFailure(error)) return AUTH_EXPIRED_USER_MESSAGE;
   if (isNotFoundFailure(error)) return PRAYER_NOT_FOUND_USER_MESSAGE;

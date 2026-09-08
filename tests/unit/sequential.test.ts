@@ -28,6 +28,15 @@ describe("배우자 순차 이동", () => {
     expect(getNextPrayerItem(items(), "home", "wife")?.item_number).toBe(10);
   });
 
+  it("item_number가 없어도 slug로 아내 선택 시 남편 기도를 건너뛴다", () => {
+    const rows = [
+      { id: "8", slug: "home", title: "가정을 위한 기도", item_number: null, display_order: 8, is_active: true },
+      { id: "9", slug: "husband", title: "남편을 위한 기도", item_number: null, display_order: 9, is_active: true },
+      { id: "10", slug: "wife", title: "아내를 위한 기도", item_number: null, display_order: 10, is_active: true },
+    ];
+    expect(getNextPrayerItem(rows, "home", "wife")?.slug).toBe("wife");
+  });
+
   it("wife 선택 시 10번의 다음은 11번", () => {
     expect(getNextPrayerItem(items(), "wife", "wife")?.item_number).toBe(11);
   });
@@ -41,6 +50,13 @@ describe("배우자 순차 이동", () => {
     expect(getNextPrayerItem(items(), "home", null)?.item_number).toBe(9);
     expect(getNextPrayerItem(items(), "husband", null)?.item_number).toBe(10);
     expect(getNextPrayerItem(items(), "wife", null)?.item_number).toBe(11);
+  });
+
+  it("여러 후보 중 첫 배우자 선택을 쓴다", async () => {
+    const { resolveSpousePrayerSelection } = await import("@/lib/progress/spouse");
+    expect(resolveSpousePrayerSelection(null, "wife", "husband")).toBe("wife");
+    expect(resolveSpousePrayerSelection(null, null, "husband")).toBe("husband");
+    expect(resolveSpousePrayerSelection(null, "unknown")).toBe(null);
   });
 
   it("husband 선택 상태에서 10번을 직접 열면 이전 9번 다음 11번", () => {

@@ -8,7 +8,7 @@ import type { ReadingState, UserPreferences } from "@/lib/progress/types";
 import { personalizationRowsFromInputs, type PersonalizationRow } from "@/lib/prayers/personalize";
 import type { PrayerInputRow, PrayerInputValues } from "@/lib/prayers/inputs";
 import { parseAutoScrollSpeed } from "@/lib/prayers/inputs";
-import { parseSpousePrayerSelection, type SpousePrayerSelection } from "@/lib/progress/spouse";
+import { parseSpousePrayerSelection, readCachedSpouseSelection, writeCachedSpouseSelection, type SpousePrayerSelection } from "@/lib/progress/spouse";
 import {
   applyPreferences,
   defaultPreferences,
@@ -119,7 +119,11 @@ export function AppProviders({
     writeCachedPreferences(next);
     setPrefs(next);
     applyPreferences(next);
-    setSpouseSelection(parseSpousePrayerSelection(initialPrefs?.spouse_prayer_selection ?? initialSpouseSelection));
+    const nextSpouse =
+      parseSpousePrayerSelection(initialPrefs?.spouse_prayer_selection ?? initialSpouseSelection) ??
+      readCachedSpouseSelection();
+    setSpouseSelection(nextSpouse);
+    writeCachedSpouseSelection(nextSpouse);
     if (initialDailySummary) setDailySummary(initialDailySummary);
     setTimeZone(normalizeTimeZone(initialTimeZone ?? initialPrefs?.time_zone));
     setOnline(navigator.onLine);
@@ -284,6 +288,7 @@ export function AppProviders({
   const updateSpouseSelection = useCallback(async (value: SpousePrayerSelection) => {
     const previous = spouseSelection;
     setSpouseSelection(value);
+    writeCachedSpouseSelection(value);
     if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
     const {
@@ -298,6 +303,7 @@ export function AppProviders({
     );
     if (error) {
       setSpouseSelection(previous);
+      writeCachedSpouseSelection(previous);
       throw error;
     }
     const next = await fetchProgressSummary(supabase);

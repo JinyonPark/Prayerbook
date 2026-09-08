@@ -1,6 +1,6 @@
 export default function Loading() {
   return (
-    <div className="min-h-[50vh] bg-[var(--bg)] px-3 pt-[var(--safe-top)]">
+    <div className="min-h-[50vh] bg-[var(--bg)] px-3 pt-0">
       <div className="h-12 rounded-xl bg-[var(--card)]" />
       <div className="mt-4 space-y-3">
         <div className="h-6 w-2/3 rounded bg-[var(--border)]" />

@@ -1,4 +1,4 @@
-const VERSION = "prayer-book-v12";
+const VERSION = "prayer-book-v13";
 const SHELL = ["/", "/login", "/install", "/manifest.webmanifest", "/offline.html", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -38,58 +38,19 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
 
   if (request.method !== "GET") return;
+  if (url.origin !== self.location.origin) return;
+  if (request.mode === "navigate") return;
+  if (isNextRouterRequest(request, url)) return;
   if (url.hostname.includes("supabase.co")) return;
-  if (url.pathname.includes("/rest/v1/") || url.pathname.includes("/auth/v1/")) return;
+  if (url.pathname.includes("/rest/v1/") || url.pathname.includes("/rest/v1") || url.pathname.includes("/auth/v1/")) return;
   if (url.pathname.startsWith("/api/")) return;
   if (url.pathname.startsWith("/auth/")) return;
-  if (isNextRouterRequest(request, url)) return;
-
-  if (request.mode === "navigate") {
-    event.respondWith(networkFirstPublic(request));
-    return;
-  }
-
-  if (url.origin !== self.location.origin) return;
-
-  if (url.pathname.startsWith("/_next/") || request.destination === "script" || request.destination === "style") {
-    event.respondWith(networkFirst(request));
-    return;
-  }
+  if (url.pathname.startsWith("/prayers")) return;
+  if (url.pathname.startsWith("/_next/")) return;
+  if (url.pathname === "/sw.js") return;
 
   event.respondWith(staleWhileRevalidate(request));
 });
-
-async function networkFirstPublic(request) {
-  try {
-    const response = await fetch(request);
-    const url = new URL(request.url);
-    const cacheable =
-      url.pathname === "/login" ||
-      url.pathname === "/signup" ||
-      url.pathname === "/install" ||
-      url.pathname === "/forgot-password";
-    if (cacheable && response.ok) {
-      const cache = await caches.open(VERSION);
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch {
-    const cached = await caches.match(request);
-    return cached || caches.match("/offline.html");
-  }
-}
-
-async function networkFirst(request) {
-  try {
-    const response = await fetch(request);
-    const cache = await caches.open(VERSION);
-    cache.put(request, response.clone());
-    return response;
-  } catch {
-    const cached = await caches.match(request);
-    return cached || caches.match("/offline.html");
-  }
-}
 
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(VERSION);

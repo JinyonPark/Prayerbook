@@ -17,6 +17,7 @@ export const AUTH_PUBLIC_PATHS = [
   "/manifest.webmanifest",
   "/sw.js",
   "/offline.html",
+  "/api/health",
 ];
 
 export function isAuthPublicPath(pathname: string): boolean {

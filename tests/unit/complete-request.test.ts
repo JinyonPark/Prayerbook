@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { toCompleteUserMessage, toUserMessage, NETWORK_USER_MESSAGE, AUTH_EXPIRED_USER_MESSAGE, COMPLETE_SAVE_FAILED_MESSAGE } from "@/lib/errors/user-message";
+import { toCompleteUserMessage, toUserMessage, NETWORK_USER_MESSAGE, AUTH_EXPIRED_USER_MESSAGE, COMPLETE_SAVE_FAILED_MESSAGE, SERVER_UNAVAILABLE_USER_MESSAGE } from "@/lib/errors/user-message";
 import { isNetworkFailure } from "@/lib/errors/inspect";
 import { completePrayerRequest, AuthExpiredError } from "@/lib/progress/complete-request";
 
@@ -27,6 +27,12 @@ describe("완료 오류 메시지", () => {
   it("fetch라는 단어만 있는 서버 오류는 인터넷 오류가 아니다", () => {
     expect(isNetworkFailure({ message: "Could not fetch row from cache" })).toBe(false);
     expect(toUserMessage({ message: "Could not fetch row from cache", code: "PGRST116" })).not.toBe(NETWORK_USER_MESSAGE);
+  });
+
+  it("서버 환경 오류는 서버 연결 안내로 표시한다", () => {
+    expect(toCompleteUserMessage({ message: "SERVER_UNAVAILABLE", status: 503, code: "SERVER_UNAVAILABLE" })).toBe(
+      SERVER_UNAVAILABLE_USER_MESSAGE,
+    );
   });
 });
 
@@ -77,5 +83,30 @@ describe("완료 요청", () => {
     expect(rpc).toHaveBeenCalledTimes(2);
     expect(rpc.mock.calls[0]?.[1]).toEqual({ prayer_item_id: "prayer-1", client_event_id: "same-event" });
     expect(rpc.mock.calls[1]?.[1]).toEqual({ prayer_item_id: "prayer-1", client_event_id: "same-event" });
+  });
+
+  it("브라우저에서는 같은 출처 API로 완료를 저장한다", async () => {
+    vi.stubGlobal("window", {});
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ current_total: 4, idempotent: false }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const rpc = vi.fn();
+    const supabase = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: "t" } }, error: null }),
+        refreshSession: vi.fn(),
+      },
+      rpc,
+    };
+    const result = await completePrayerRequest(supabase as never, "prayer-1", "event-1");
+    expect(result.current_total).toBe(4);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/prayers/complete",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(rpc).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

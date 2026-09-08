@@ -1,4 +1,4 @@
-import { excludedSpouseItemNumber, type SpousePrayerSelection } from "@/lib/progress/spouse";
+import { isExcludedSpousePrayer, type SpousePrayerSelection } from "@/lib/progress/spouse";
 
 export type SequentialPrayerItem = {
   id: string;
@@ -13,12 +13,11 @@ export function getSequentialPrayerItems<T extends SequentialPrayerItem>(
   prayerItems: T[],
   spousePrayerSelection: SpousePrayerSelection,
 ): T[] {
-  const excluded = excludedSpouseItemNumber(spousePrayerSelection);
   return prayerItems
     .filter((item) => item.is_active !== false)
     .slice()
     .sort((a, b) => a.display_order - b.display_order)
-    .filter((item) => excluded === null || item.item_number !== excluded);
+    .filter((item) => !isExcludedSpousePrayer(spousePrayerSelection, item));
 }
 
 export function getPreviousPrayerItem<T extends SequentialPrayerItem>(

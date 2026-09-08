@@ -10,7 +10,17 @@ async function login(page) {
   await expect(page).not.toHaveURL(/\/login/, { timeout: 20000 });
 }
 
-test("남편 선택 시 다음 기도가 아내 기도를 건너뛴다", async ({ page }) => {
+test("아내 선택 시 다음 기도가 남편 기도를 건너뛴다", async ({ page }) => {
+  test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
+  await login(page);
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "아내를 위한 기도" }).click();
+  await page.goto("/prayers/home");
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.getByRole("link", { name: "다음 기도" }).click();
+  await expect(page).toHaveURL(/\/prayers\/wife/);
+  await expect(page).not.toHaveURL(/\/prayers\/husband/);
+});
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await login(page);
   await page.goto("/settings");

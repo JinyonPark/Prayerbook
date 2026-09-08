@@ -16,7 +16,7 @@ export function AppHeader({ title, hiddenOnMobile = false }: { title: string; hi
   return (
     <header
       className={`app-header sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur ${
-        hiddenOnMobile ? "max-lg:hidden" : ""
+        hiddenOnMobile ? "hidden lg:block" : ""
       }`}
     >
       <div className="mx-auto flex min-h-14 max-w-6xl items-center gap-3 px-5">

@@ -27,6 +27,7 @@ describe("인증 공개 경로와 콜백", () => {
     expect(isAuthPublicPath("/reset-password")).toBe(true);
     expect(isAuthPublicPath("/auth/error")).toBe(true);
     expect(isAuthPublicPath("/api/auth/reset")).toBe(true);
+    expect(isAuthPublicPath("/api/health")).toBe(true);
     expect(isAuthPublicPath("/settings")).toBe(false);
     expect(isAuthPublicPath("/")).toBe(false);
   });

@@ -103,6 +103,14 @@ body::before {
   pointer-events: none;
 }
 
+html[data-reader="true"] {
+  --safe-top: 0px;
+}
+
+html[data-reader="true"] body::before {
+  display: none;
+}
+
 @media (display-mode: standalone), (display-mode: fullscreen) {
   :root {
     --safe-top: var(--safe-top-env);
@@ -194,11 +202,11 @@ svg {
 
 .reader-chrome {
   min-height: 2.75rem;
-  z-index: 100;
+  z-index: 200;
 }
 
 .reader-chrome-spacer {
-  height: 2.75rem;
+  height: 0;
 }
 
 @media (max-width: 1023px) {
