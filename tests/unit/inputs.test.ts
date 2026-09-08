@@ -3,8 +3,9 @@ import { formatNameList, parseNameList, sanitizePlainText } from "@/lib/prayers/
 import { applyPersonalization, applyPrayerInputValues } from "@/lib/prayers/personalize";
 
 describe("이름 입력", () => {
-  it("줄바꿈과 쉼표를 나누고 공백과 빈 값을 제거한다", () => {
+  it("줄바꿈·쉼표·띄어쓰기로 이름을 나눈다", () => {
     expect(parseNameList(" 민수 \n\n민지, 은혜 , ")).toEqual(["민수", "민지", "은혜"]);
+    expect(parseNameList("박종범 경규민 박준")).toEqual(["박종범", "경규민", "박준"]);
   });
 
   it("여러 이름을 한 묶음으로 표시한다", () => {

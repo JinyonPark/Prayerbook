@@ -85,6 +85,17 @@ describe("기도문 개인화", () => {
     expect(result).not.toContain("태신자들가");
   });
 
+  it("띄어쓰기로 붙인 태신자 이름도 여러 명으로 나눈다", () => {
+    const source =
+      "하나님 아버지의 이름이 (태신자 이름) 씨를 통하여 거룩히 여김 받으시기를 원합니다. 그리고 ㅇㅇㅇ씨가 하나님의 이름을 거룩히 여기는 일들을 하기 원합니다.";
+    const result = applyPersonalization(source, "conceived-believer", {
+      names: ["박종범 경규민 박준"],
+    });
+    expect(result).toContain("박종범, 경규민, 박준씨를 통하여");
+    expect(result).toContain("그리고 태신자들이");
+    expect(result).not.toContain("박종범 경규민 박준씨가");
+  });
+
   it("설정이 매번 표시이면 태신자 이름을 모두 반복한다", () => {
     const source =
       "하나님 아버지의 이름이 (태신자 이름) 씨를 통하여 거룩히 여김 받으시기를 원합니다. 그리고 ㅇㅇㅇ씨가 하나님의 이름을 거룩히 여기는 일들을 하기 원합니다.";

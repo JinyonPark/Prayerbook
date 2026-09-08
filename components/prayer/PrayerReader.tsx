@@ -115,7 +115,6 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const excluded = Boolean(progress?.excluded_from_progress);
   const doneThisRound = prayer.category === "main" && !excluded ? count >= round : false;
   const numberedTitle = `${prayer.item_number ? `${prayer.item_number}. ` : ""}${prayer.title}`;
-  const chromeShown = chromeVisible && !autoRunning;
   const appliedNames = bulkNameList?.length
     ? bulkNameList
     : focusName || nameRows[0]?.value
@@ -319,7 +318,6 @@ export function PrayerReader({ prayer, prayers }: Props) {
       lastTouchYRef.current = event.touches[0]?.clientY ?? 0;
     }
     function onTouchMove(event: TouchEvent) {
-      if (autoRunningRef.current) return;
       const y = event.touches[0]?.clientY ?? lastTouchYRef.current;
       const fingerDelta = y - lastTouchYRef.current;
       lastTouchYRef.current = y;
@@ -329,7 +327,6 @@ export function PrayerReader({ prayer, prayers }: Props) {
       touchingChromeRef.current = false;
     }
     function onWheel(event: WheelEvent) {
-      if (autoRunningRef.current) return;
       if (event.deltaY < -4) applyChrome(true);
       else if (event.deltaY > 4) applyChrome(false);
     }
@@ -337,17 +334,13 @@ export function PrayerReader({ prayer, prayers }: Props) {
       const y = window.scrollY || document.documentElement.scrollTop || 0;
       const deltaY = y - lastChromeYRef.current;
       lastChromeYRef.current = y;
-      if (autoRunningRef.current) {
-        applyChrome(false);
-        return;
-      }
+      if (autoRunningRef.current) return;
       if (touchingChromeRef.current) return;
       applyChrome(
         nextReaderChromeVisible({
           current: chromeVisibleRef.current,
           scrollY: y,
           deltaY,
-          autoRunning: false,
         }),
       );
     }
@@ -599,7 +592,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
         <div
           ref={chromeRef}
           className={`reader-chrome z-[200] border-b border-[var(--border)] bg-[var(--bg)] transition-transform duration-200 ease-out lg:sticky lg:top-[var(--header-h)] lg:-mx-5 lg:mb-4 lg:px-5 ${
-            chromeShown ? "translate-y-0" : "max-lg:pointer-events-none max-lg:-translate-y-full"
+            chromeVisible ? "translate-y-0" : "max-lg:pointer-events-none max-lg:-translate-y-full"
           }`}
         >
           <div className="mx-auto flex max-w-[760px] items-start gap-1 px-3 py-1 lg:px-0 lg:py-2">

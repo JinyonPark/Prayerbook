@@ -1,6 +1,7 @@
 import {
   formatNameList,
   lastNameForParticle,
+  parseNameList,
   sanitizePlainText,
   type PrayerInputRow,
   type PrayerInputValues,
@@ -142,7 +143,7 @@ export function personalizationRowsFromInputs(inputs: PrayerInputRow[]): Persona
   for (const [slug, prayerItemId] of Object.entries(PERSONALIZATION_ITEM_IDS)) {
     const values = inputs.find((row) => row.prayer_item_id === prayerItemId)?.values ?? {};
     const names = slug === "children" ? values.child_names : values.names;
-    (names ?? []).forEach((name, index) => {
+    parseNameList((names ?? []).join("\n")).forEach((name, index) => {
       if (!name.trim()) return;
       rows.push({
         id: `${prayerItemId}:name:${index}`,
@@ -290,11 +291,9 @@ export function applyPersonalization(
     }
   }
 
-  const names = (options.names?.filter(Boolean) ?? []).length
-    ? (options.names ?? []).map((item) => item.trim()).filter(Boolean)
-    : options.name?.trim()
-      ? [options.name.trim()]
-      : [];
+  const rawNames =
+    (options.names?.filter(Boolean) ?? []).length > 0 ? (options.names ?? []).join("\n") : options.name?.trim() ?? "";
+  const names = parseNameList(rawNames);
   if (names.length > 0) {
     const config = personalizationConfig(slug);
     if (slug === "conceived-believer" && names.length > 1 && options.nameRepeat !== "all") {

@@ -136,30 +136,6 @@ export function SettingsView() {
         <Link href="/settings/personalize" className="touch-target mt-3 inline-flex rounded-xl bg-[var(--accent)] px-4 py-2.5 text-[var(--accent-text)]">
           이름·중보기도 관리
         </Link>
-        <fieldset className="mt-4">
-          <legend className="mb-2 text-sm text-[var(--muted)]">태신자 이름 표시</legend>
-          <p className="mb-2 text-sm text-[var(--muted)]">
-            태신자가 여러 명일 때, 기도문 처음만 이름을 모두 넣고 나머지는 ‘태신자들’로 이을지 선택합니다.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant={!prefs.conceivedShowAllNames ? "primary" : "secondary"}
-              aria-pressed={!prefs.conceivedShowAllNames}
-              onClick={() => void updatePrefs({ conceivedShowAllNames: false })}
-            >
-              처음만 전부 표시
-            </Button>
-            <Button
-              type="button"
-              variant={prefs.conceivedShowAllNames ? "primary" : "secondary"}
-              aria-pressed={prefs.conceivedShowAllNames}
-              onClick={() => void updatePrefs({ conceivedShowAllNames: true })}
-            >
-              매번 전부 표시
-            </Button>
-          </div>
-        </fieldset>
       </section>
 
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">

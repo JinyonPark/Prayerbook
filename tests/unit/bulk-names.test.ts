@@ -14,10 +14,11 @@ describe("이름·중보기도 여러 이름 입력", () => {
     expect(view).toContain("매번 전부 표시");
   });
 
-  it("설정에서 태신자 이름 표시를 고른다", () => {
-    expect(settings).toContain("conceivedShowAllNames");
-    expect(settings).toContain("처음만 전부 표시");
-    expect(settings).toContain("매번 전부 표시");
+  it("설정 첫 화면에는 태신자 이름 표시 옵션이 없다", () => {
+    expect(settings).not.toContain("conceivedShowAllNames");
+    expect(settings).not.toContain("처음만 전부 표시");
+    expect(view).toContain("처음만 전부 표시");
+    expect(view).toContain("매번 전부 표시");
   });
 
   it("기도문은 여러 이름을 함께 넣고 표시 설정을 따른다", () => {

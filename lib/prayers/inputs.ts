@@ -24,7 +24,7 @@ export function sanitizePlainText(value: string, maxLength = 200): string {
 export function parseNameList(raw: string): string[] {
   const seen = new Set<string>();
   const names: string[] = [];
-  for (const part of raw.split(/[\n,]+/)) {
+  for (const part of raw.split(/[\s,]+/)) {
     const name = sanitizePlainText(part, 40);
     if (!name || seen.has(name)) continue;
     seen.add(name);
