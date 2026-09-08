@@ -1,16 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Noto_Sans_KR } from "next/font/google";
 import { InstallPromptProvider } from "@/components/pwa/InstallPromptProvider";
 import { INSTALL_CAPTURE_SCRIPT } from "@/lib/pwa/detect";
 import { THEME_INIT_SCRIPT } from "@/lib/theme/preferences";
 import "./globals.css";
-
-const notoSansKr = Noto_Sans_KR({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-  display: "swap",
-  variable: "--font-noto",
-});
 
 export const metadata: Metadata = {
   title: "기도훈련집",
@@ -46,7 +38,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko" className={notoSansKr.variable} suppressHydrationWarning>
+    <html lang="ko" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: INSTALL_CAPTURE_SCRIPT }} />

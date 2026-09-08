@@ -3,13 +3,10 @@ import { redirect } from "next/navigation";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { AppBootSkeleton } from "@/components/layout/AppBootSkeleton";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { fetchDailyPrayerSummary, fetchProgressSummary } from "@/lib/supabase/rpc";
+import { fetchProgressSummary } from "@/lib/supabase/rpc";
 import { hasPublicEnv } from "@/lib/validation/env";
 import type { ReadingState, UserPreferences } from "@/lib/progress/types";
-import { personalizationRowsFromInputs } from "@/lib/prayers/personalize";
-import type { PrayerInputRow } from "@/lib/prayers/inputs";
 import { parseSpousePrayerSelection } from "@/lib/progress/spouse";
-import { emptyDailySummary } from "@/lib/progress/daily";
 import { DEFAULT_TIME_ZONE, normalizeTimeZone } from "@/lib/progress/timezone";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +35,7 @@ async function AppDataProviders({ children }: { children: React.ReactNode }) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [summaryResult, prefsResultRaw, readingResultRaw, inputResultRaw, dailyResult] = await Promise.all([
+  const [summaryResult, prefsResultRaw, readingResultRaw] = await Promise.all([
     fetchProgressSummary(supabase).catch(() => ({
       total_completed: 0,
       current_round: 1,
@@ -57,29 +54,10 @@ async function AppDataProviders({ children }: { children: React.ReactNode }) {
       .select("last_prayer_item_id, scroll_ratio, anchor_key, anchor_offset, last_opened_at, updated_at")
       .eq("user_id", user.id)
       .maybeSingle(),
-    supabase.from("user_prayer_inputs").select("prayer_item_id, values, updated_at"),
-    fetchDailyPrayerSummary(supabase).catch(() => emptyDailySummary()),
   ]);
 
-  let prefsResult = prefsResultRaw;
-  if (prefsResult.error) {
-    prefsResult = await supabase
-      .from("user_preferences")
-      .select("theme, font_size, line_height, spouse_prayer_selection, auto_scroll_speed, time_zone")
-      .eq("user_id", user.id)
-      .maybeSingle();
-  }
-  if (prefsResult.error) {
-    prefsResult = await supabase.from("user_preferences").select("theme, font_size, line_height").eq("user_id", user.id).maybeSingle();
-  }
-  const readingResult = readingResultRaw.error
-    ? await supabase
-        .from("user_reading_state")
-        .select("last_prayer_item_id, scroll_ratio, last_opened_at, updated_at")
-        .eq("user_id", user.id)
-        .maybeSingle()
-    : readingResultRaw;
-  const inputResult = inputResultRaw.error ? { data: [] } : inputResultRaw;
+  const prefsResult = prefsResultRaw.error ? { data: null } : prefsResultRaw;
+  const readingResult = readingResultRaw.error ? { data: null } : readingResultRaw;
 
   const prefs = prefsResult.data as (UserPreferences & {
     spouse_prayer_selection?: string | null;
@@ -89,16 +67,11 @@ async function AppDataProviders({ children }: { children: React.ReactNode }) {
   }) | null;
   const timeZone = normalizeTimeZone(prefs?.time_zone ?? DEFAULT_TIME_ZONE);
 
-  const prayerInputs = (inputResult.data as PrayerInputRow[] | null) ?? [];
-
   return (
     <AppProviders
       initialSummary={summaryResult}
-      initialDailySummary={dailyResult}
       initialReading={(readingResult.data as ReadingState | null) ?? null}
       initialPrefs={prefs}
-      initialPersonalizations={personalizationRowsFromInputs(prayerInputs)}
-      initialPrayerInputs={prayerInputs}
       initialSpouseSelection={parseSpousePrayerSelection(prefs?.spouse_prayer_selection)}
       initialTimeZone={timeZone}
     >

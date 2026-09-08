@@ -10,6 +10,13 @@ describe("완료 API와 서버 점검", () => {
     expect(source).toContain("AUTH_EXPIRED");
   });
 
+  it("횟수 수정은 서버 세션 API를 쓴다", () => {
+    const source = readFileSync(path.join(process.cwd(), "app/api/progress/route.ts"), "utf8");
+    expect(source).toContain("rpcSetCount");
+    expect(source).toContain("rpcResetItem");
+    expect(source).toContain("createServerSupabaseClient");
+  });
+
   it("헬스 체크는 익명 키로 prayer_items를 조회한다", () => {
     const source = readFileSync(path.join(process.cwd(), "app/api/health/route.ts"), "utf8");
     expect(source).toContain("/auth/v1/health");

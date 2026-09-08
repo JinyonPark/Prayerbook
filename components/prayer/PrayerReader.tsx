@@ -59,7 +59,6 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const [inputStatus, setInputStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<number | null>(null);
-  const [atTop, setAtTop] = useState(true);
   const [reachedEnd, setReachedEnd] = useState(false);
   const [inputEditorOpen, setInputEditorOpen] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
@@ -69,12 +68,12 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const lastReadingRef = useRef(reading);
   const persistReadingRef = useRef<(opened?: boolean) => Promise<void>>(async () => {});
   const lastSaved = useRef(0);
-  const lastScrollY = useRef(0);
   const userScrolling = useRef(false);
   const restoring = useRef(false);
   const completeEventId = useRef<string | null>(null);
   const autoCancelRef = useRef(false);
   const autoTimerRef = useRef(0);
+  const autoRunningRef = useRef(false);
   const articleWrapRef = useRef<HTMLDivElement>(null);
   const nameRows = namesFor(personalizations, prayer.slug);
   const intercession = intercessionFor(personalizations, prayer.slug);
@@ -85,6 +84,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const overlayOpen = tocOpen || celebration !== null || inputEditorOpen;
   const overlayOpenRef = useRef(overlayOpen);
   overlayOpenRef.current = overlayOpen;
+  autoRunningRef.current = autoRunning;
   const eligibleCount = eligibleCountFromSummary(summary);
   const resolvedSpouse = resolveSpousePrayerSelection(spouseSelection, summary?.spouse_prayer_selection);
   const excludedNumber = excludedSpouseItemNumber(resolvedSpouse);
@@ -143,9 +143,9 @@ export function PrayerReader({ prayer, prayers }: Props) {
       };
       if (!readingPersistEquals(lastReadingRef.current, payload)) {
         lastReadingRef.current = payload;
-        setReading(payload);
+        if (!autoRunningRef.current) setReading(payload);
       }
-      if (!hasPublicEnv()) return;
+      if (!hasPublicEnv() || autoRunningRef.current) return;
       const supabase = createBrowserSupabaseClient();
       const {
         data: { user },
@@ -174,6 +174,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
     window.clearTimeout(autoTimerRef.current);
     autoTimerRef.current = 0;
     setAutoRunning(false);
+    void persistReadingRef.current();
   }, []);
 
   useEffect(() => {
@@ -183,7 +184,6 @@ export function PrayerReader({ prayer, prayers }: Props) {
     completeEventId.current = null;
     setReachedEnd(false);
     setAutoRunning(false);
-    setAtTop(true);
     setTocOpen(false);
     setStatus("idle");
     setError(null);
@@ -241,7 +241,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
   useEffect(() => {
     let frame = 0;
     function onViewportChange() {
-      if (userScrolling.current || restoring.current) return;
+      if (userScrolling.current || restoring.current || autoRunningRef.current) return;
       window.cancelAnimationFrame(frame);
       const article = articleWrapRef.current?.querySelector(".reader-article") as HTMLElement | null;
       const snapshot = captureReadingAnchor(article);
@@ -280,19 +280,6 @@ export function PrayerReader({ prayer, prayers }: Props) {
       window.removeEventListener("pagehide", saveNow);
       saveNow();
     };
-  }, [prayer.id]);
-
-  useEffect(() => {
-    lastScrollY.current = window.scrollY;
-    setAtTop(window.scrollY < 24);
-
-    function onScroll() {
-      setAtTop(window.scrollY < 24);
-      lastScrollY.current = window.scrollY;
-    }
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
   }, [prayer.id]);
 
   useEffect(() => {
@@ -393,6 +380,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
         if (next.finished && max > 1) {
           setReachedEnd(true);
           setAutoRunning(false);
+          void persistReadingRef.current();
           return;
         }
       }
@@ -534,8 +522,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
             >
               뒤로
             </ReaderNavLink>
-            <p className="hidden min-w-0 flex-1 truncate font-semibold lg:block">{numberedTitle}</p>
-            <div className="min-w-0 flex-1 lg:hidden" aria-hidden="true" />
+            <p className="min-w-0 flex-1 truncate font-semibold">{numberedTitle}</p>
             <div className="ml-auto flex shrink-0 items-center">
               <ReaderNavLink
                 href="/"
@@ -569,9 +556,6 @@ export function PrayerReader({ prayer, prayers }: Props) {
               </Button>
             </div>
           </div>
-          {atTop ? (
-            <p className="mx-auto max-w-[760px] px-3 pb-2 font-semibold leading-snug lg:hidden">{numberedTitle}</p>
-          ) : null}
         </div>
 
         {["heal-sickness", "hope-prayer", "conceived-prayer"].includes(prayer.slug) ? (

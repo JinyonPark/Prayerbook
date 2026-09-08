@@ -139,6 +139,19 @@ export function AppProviders({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!hasPublicEnv()) return;
+    const supabase = createBrowserSupabaseClient();
+    void supabase
+      .from("user_prayer_inputs")
+      .select("prayer_item_id, values, updated_at")
+      .then(({ data }) => {
+        if (!data) return;
+        setPrayerInputs(data as PrayerInputRow[]);
+        setPersonalizations(personalizationRowsFromInputs(data as PrayerInputRow[]));
+      });
+  }, []);
+
   const persistTimeZone = useCallback(async (nextZone: string) => {
     if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
@@ -232,21 +245,6 @@ export function AppProviders({
     arm();
     return () => window.clearTimeout(timer);
   }, [timeZone, refreshDaily]);
-
-  useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    let refreshing = false;
-    function onControllerChange() {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
-    }
-    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-    window.setTimeout(() => {
-      void navigator.serviceWorker.register("/sw.js", { scope: "/" });
-    }, 0);
-    return () => navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
-  }, []);
 
   useEffect(() => {
     if (!hasPublicEnv()) return;

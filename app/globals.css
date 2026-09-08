@@ -65,7 +65,7 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-noto), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-sans: "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
 }
 
 * {

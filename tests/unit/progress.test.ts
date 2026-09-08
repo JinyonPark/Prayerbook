@@ -7,6 +7,7 @@ import {
   findNextIncomplete,
   previewComplete,
   previewCurrentRoundReset,
+  previewSetCount,
   type PrayerCountItem,
 } from "@/lib/progress/calculate";
 
@@ -193,5 +194,17 @@ describe("배우자 기도 선택 진행률", () => {
     const husband = calculateProgressFromItems(items, "husband");
     expect(husband.eligibleCount).toBe(eligiblePrayerItems(items, "husband").length);
     expect(husband.eligibleCount).toBe(26);
+  });
+
+  it("이미 현재 독수를 넘긴 항목을 1회 더해도 Total은 그대로다", () => {
+    const values = Array(MAIN_PRAYER_COUNT).fill(1);
+    values[0] = 2;
+    const items = itemsFromMain(values);
+    const before = calculateProgressFromItems(items);
+    const after = calculateProgressFromItems(previewSetCount(items, "main-1", 3));
+    expect(before.totalCompleted).toBe(1);
+    expect(after.totalCompleted).toBe(1);
+    expect(after.currentRound).toBe(before.currentRound);
+    expect(after.currentCompletedCount).toBe(before.currentCompletedCount);
   });
 });

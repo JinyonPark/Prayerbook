@@ -12,16 +12,8 @@ import {
 } from "@/lib/progress/calculate";
 import { MAIN_PRAYER_COUNT } from "@/lib/prayers/catalog";
 import { parseCountInput } from "@/lib/validation/count";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import {
-  mapSummaryItems,
-  rpcBulkSetMain,
-  rpcResetAll,
-  rpcResetCurrentRound,
-  rpcResetItem,
-  rpcResetMain,
-  rpcSetCount,
-} from "@/lib/supabase/rpc";
+import { mutateProgress } from "@/lib/progress/mutate-request";
+import { mapSummaryItems } from "@/lib/supabase/rpc";
 import { toUserMessage } from "@/lib/errors/user-message";
 import type { PrayerItemRecord } from "@/lib/prayers/markdown";
 import type { RpcMutationResult } from "@/lib/progress/types";
@@ -52,9 +44,15 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
   });
 
   const parsedEdit = edit ? parseCountInput(edit.value) : null;
+  const currentEditCount = edit ? (items.find((item) => item.id === edit.item.id)?.completionCount ?? 0) : 0;
   const afterEdit = edit && parsedEdit?.ok ? previewSetCount(items, edit.item.id, parsedEdit.value) : items;
   const afterSummary = calculateProgressFromItems(afterEdit, spouseSelection);
   const totalDecreases = edit && parsedEdit?.ok && afterSummary.totalCompleted < current.totalCompleted;
+  const totalsUnchanged =
+    Boolean(edit && parsedEdit?.ok) &&
+    afterSummary.totalCompleted === current.totalCompleted &&
+    afterSummary.currentRound === current.currentRound &&
+    afterSummary.currentCompletedCount === current.currentCompletedCount;
 
   async function run(task: () => Promise<RpcMutationResult>, successText: string) {
     setPending(true);
@@ -68,7 +66,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
       return data;
     } catch (err) {
       setError(toUserMessage(err));
-      throw err;
+      return null;
     } finally {
       setPending(false);
     }
@@ -177,12 +175,21 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
               </Button>
             </div>
             {parsedEdit && !parsedEdit.ok ? <p role="alert">{parsedEdit.message}</p> : null}
+            {parsedEdit?.ok ? (
+              <p>
+                이 기도 {currentEditCount}회 → {parsedEdit.value}회
+              </p>
+            ) : null}
             <p>
               변경 전: Total {current.totalCompleted}독 · {current.currentRound}독 진행 중 {current.currentCompletedCount}/{current.eligibleCount}
             </p>
             <p>
               변경 후 예상: Total {afterSummary.totalCompleted}독 · {afterSummary.currentRound}독 진행 중 {afterSummary.currentCompletedCount}/{current.eligibleCount}
             </p>
+            {totalsUnchanged ? (
+              <p className="text-sm text-[var(--muted)]">이 횟수 변경으로는 Total과 현재 독수 진행이 바뀌지 않습니다.</p>
+            ) : null}
+            {error ? <p role="alert">{error}</p> : null}
             {totalDecreases ? (
               <p>
                 이 변경으로 Total 완료 횟수가 {current.totalCompleted}독에서 {afterSummary.totalCompleted}독으로 변경됩니다.
@@ -200,11 +207,17 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
                     setDialogs((d) => ({ ...d, saveConfirm: true }));
                     return;
                   }
-                  const supabase = createBrowserSupabaseClient();
-                  await run(
-                    () => rpcSetCount(supabase, edit.item.id, parsedEdit.value, clientEventId()),
+                  const saved = await run(
+                    () =>
+                      mutateProgress({
+                        op: "set_count",
+                        prayerItemId: edit.item.id,
+                        newCount: parsedEdit.value,
+                        clientEventId: clientEventId(),
+                      }),
                     "저장했습니다.",
                   );
+                  if (!saved) return;
                   setEdit(null);
                   setDialogs((d) => ({ ...d, saveConfirm: false }));
                 }}
@@ -237,8 +250,16 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
               <Button
                 disabled={pending}
                 onClick={async () => {
-                  const supabase = createBrowserSupabaseClient();
-                  await run(() => rpcResetItem(supabase, dialogs.resetItem!.id, clientEventId()), "초기화했습니다.");
+                  const saved = await run(
+                    () =>
+                      mutateProgress({
+                        op: "reset_item",
+                        prayerItemId: dialogs.resetItem!.id,
+                        clientEventId: clientEventId(),
+                      }),
+                    "초기화했습니다.",
+                  );
+                  if (!saved) return;
                   setDialogs((d) => ({ ...d, resetItem: null }));
                 }}
               >
@@ -258,8 +279,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
         description="이미 완료한 Total은 유지하고, 현재 진행 중인 독수에서 앞선 기록만 제거합니다. 추가 기도는 변경하지 않습니다."
         onClose={() => setDialogs((d) => ({ ...d, round: false }))}
         onConfirm={async () => {
-          const supabase = createBrowserSupabaseClient();
-          await run(() => rpcResetCurrentRound(supabase, clientEventId()), "초기화했습니다.");
+          await run(() => mutateProgress({ op: "reset_round", clientEventId: clientEventId() }), "초기화했습니다.");
           setDialogs((d) => ({ ...d, round: false }));
         }}
       />
@@ -283,8 +303,8 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
             variant="danger"
             disabled={pending || mainConfirm !== "초기화"}
             onClick={async () => {
-              const supabase = createBrowserSupabaseClient();
-              await run(() => rpcResetMain(supabase, clientEventId()), "초기화했습니다.");
+              const saved = await run(() => mutateProgress({ op: "reset_main", clientEventId: clientEventId() }), "초기화했습니다.");
+              if (!saved) return;
               setMainConfirm("");
               setDialogs((d) => ({ ...d, main: false }));
             }}
@@ -306,8 +326,8 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
             variant="danger"
             disabled={pending || allConfirm !== "모든 기록 초기화"}
             onClick={async () => {
-              const supabase = createBrowserSupabaseClient();
-              await run(() => rpcResetAll(supabase, clientEventId()), "초기화했습니다.");
+              const saved = await run(() => mutateProgress({ op: "reset_all", clientEventId: clientEventId() }), "초기화했습니다.");
+              if (!saved) return;
               setAllConfirm("");
               setDialogs((d) => ({ ...d, all: false }));
             }}
@@ -347,8 +367,11 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
             onClick={async () => {
               const parsed = parseCountInput(bulkValue);
               if (!parsed.ok) return;
-              const supabase = createBrowserSupabaseClient();
-              await run(() => rpcBulkSetMain(supabase, parsed.value, clientEventId()), "적용했습니다.");
+              const saved = await run(
+                () => mutateProgress({ op: "bulk_set", newCount: parsed.value, clientEventId: clientEventId() }),
+                "적용했습니다.",
+              );
+              if (!saved) return;
               setDialogs((d) => ({ ...d, bulk: false }));
             }}
           >

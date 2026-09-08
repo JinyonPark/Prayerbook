@@ -1,7 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
-import { hardNavigate } from "@/lib/prayers/navigate";
 
 type Props = {
   href: string;
@@ -11,15 +11,16 @@ type Props = {
 };
 
 export function ReaderNavLink({ href, className, children, onNavigate }: Props) {
+  const router = useRouter();
   return (
     <a
       href={href}
       className={className}
       onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
         event.preventDefault();
-        event.stopPropagation();
         if (onNavigate?.() === false) return;
-        hardNavigate(href);
+        router.push(href);
       }}
     >
       {children}

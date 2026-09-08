@@ -46,7 +46,9 @@ export function InstallPromptProvider({ children }: { children: ReactNode }) {
     window.addEventListener("beforeinstallprompt", onPrompt);
     window.addEventListener("appinstalled", onInstalled);
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      window.setTimeout(() => {
+        void navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      }, 4000);
     }
     setReady(true);
     return () => {
