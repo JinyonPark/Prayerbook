@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { inspectError, isAuthFailure, logDevError } from "@/lib/errors/inspect";
 import { rpcComplete } from "@/lib/supabase/rpc";
 import type { RpcMutationResult } from "@/lib/progress/types";
+import { perfMark, perfMeasure } from "@/lib/perf/marks";
 
 export class AuthExpiredError extends Error {
   code = "AUTH_EXPIRED";
@@ -61,41 +62,55 @@ export async function completePrayerRequest(
   prayerItemId: string,
   clientEventId: string,
 ): Promise<RpcMutationResult> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) {
-    const refreshed = await refreshSessionOnce(supabase);
-    if (!refreshed) throw new AuthExpiredError();
-  }
-
-  if (typeof window !== "undefined") {
-    try {
-      return await completeViaSameOrigin(prayerItemId, clientEventId);
-    } catch (error) {
-      logDevError("complete_prayer_api", error);
-      if (isAuthFailure(error) || inspectError(error).status === 401) {
-        const refreshed = await refreshSessionOnce(supabase);
-        if (!refreshed) throw new AuthExpiredError();
-        try {
-          return await completeViaSameOrigin(prayerItemId, clientEventId);
-        } catch (retryError) {
-          if (isAuthFailure(retryError) || inspectError(retryError).status === 401) {
-            throw new AuthExpiredError();
-          }
-          logDevError("complete_prayer_api_retry", retryError);
-        }
-      }
-    }
-  }
-
+  perfMark("complete_request_start");
   try {
-    return await rpcComplete(supabase, prayerItemId, clientEventId);
+    const result = await rpcComplete(supabase, prayerItemId, clientEventId);
+    perfMark("complete_response_received");
+    perfMeasure("complete_rpc", "complete_request_start", "complete_response_received");
+    return result;
   } catch (error) {
     logDevError("complete_prayer", error);
-    if (!isAuthFailure(error) && inspectError(error).status !== 401) throw error;
-    const refreshed = await refreshSessionOnce(supabase);
-    if (!refreshed) throw new AuthExpiredError();
-    return await rpcComplete(supabase, prayerItemId, clientEventId);
+    if (isAuthFailure(error) || inspectError(error).status === 401) {
+      const refreshed = await refreshSessionOnce(supabase);
+      if (!refreshed) throw new AuthExpiredError();
+      try {
+        const result = await rpcComplete(supabase, prayerItemId, clientEventId);
+        perfMark("complete_response_received");
+        perfMeasure("complete_rpc", "complete_request_start", "complete_response_received");
+        return result;
+      } catch (retryError) {
+        if (isAuthFailure(retryError) || inspectError(retryError).status === 401) {
+          throw new AuthExpiredError();
+        }
+        if (typeof window !== "undefined") {
+          try {
+            return await completeViaSameOrigin(prayerItemId, clientEventId);
+          } catch (apiError) {
+            if (isAuthFailure(apiError) || inspectError(retryError).status === 401) {
+              throw new AuthExpiredError();
+            }
+            throw apiError;
+          }
+        }
+        throw retryError;
+      }
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const result = await completeViaSameOrigin(prayerItemId, clientEventId);
+        perfMark("complete_response_received");
+        perfMeasure("complete_rpc", "complete_request_start", "complete_response_received");
+        return result;
+      } catch (apiError) {
+        logDevError("complete_prayer_api", apiError);
+        if (isAuthFailure(apiError) || inspectError(apiError).status === 401) {
+          const refreshed = await refreshSessionOnce(supabase);
+          if (!refreshed) throw new AuthExpiredError();
+          return await rpcComplete(supabase, prayerItemId, clientEventId);
+        }
+        throw apiError;
+      }
+    }
+    throw error;
   }
 }

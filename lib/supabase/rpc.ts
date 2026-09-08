@@ -4,7 +4,7 @@ import type { RpcMutationResult, RpcProgressSummary } from "@/lib/progress/types
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export function mapSummaryItems(summary: RpcProgressSummary): PrayerCountItem[] {
-  return summary.items.map((item) => ({
+  return (summary.items ?? []).map((item) => ({
     id: item.prayer_item_id,
     category: item.category,
     countsTowardTotal: item.counts_toward_total,
@@ -18,6 +18,30 @@ export async function fetchProgressSummary(supabase: SupabaseClient): Promise<Rp
   const { data, error } = await supabase.rpc("get_prayer_progress_summary");
   if (error) throw error;
   return data as RpcProgressSummary;
+}
+
+export async function fetchHomeDashboard(supabase: SupabaseClient): Promise<{
+  progress: RpcProgressSummary;
+  daily: DailyPrayerSummary;
+}> {
+  const { data, error } = await supabase.rpc("get_home_dashboard_summary");
+  if (error) throw error;
+  const row = (data && typeof data === "object" ? data : {}) as {
+    progress?: unknown;
+    daily?: unknown;
+  };
+  return {
+    progress: {
+      total_completed: 0,
+      current_round: 1,
+      current_completed_count: 0,
+      progress_percent: 0,
+      eligible_count: 0,
+      items: [],
+      ...(row.progress && typeof row.progress === "object" ? (row.progress as RpcProgressSummary) : {}),
+    },
+    daily: normalizeDailySummary(row.daily),
+  };
 }
 
 export async function fetchDailyPrayerSummary(

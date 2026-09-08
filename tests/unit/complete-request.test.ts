@@ -85,28 +85,44 @@ describe("완료 요청", () => {
     expect(rpc.mock.calls[1]?.[1]).toEqual({ prayer_item_id: "prayer-1", client_event_id: "same-event" });
   });
 
-  it("브라우저에서는 같은 출처 API로 완료를 저장한다", async () => {
+  it("브라우저에서 RPC가 되면 같은 출처 API를 쓰지 않는다", async () => {
     vi.stubGlobal("window", {});
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ current_total: 4, idempotent: false }),
-    });
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    const rpc = vi.fn();
+    const rpc = vi.fn().mockResolvedValue({ data: { current_total: 4, idempotent: false }, error: null });
     const supabase = {
       auth: {
-        getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: "t" } }, error: null }),
         refreshSession: vi.fn(),
       },
       rpc,
     };
     const result = await completePrayerRequest(supabase as never, "prayer-1", "event-1");
     expect(result.current_total).toBe(4);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("브라우저에서 RPC가 실패하면 같은 출처 API로 저장한다", async () => {
+    vi.stubGlobal("window", {});
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ current_total: 5, idempotent: false }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: "Failed to fetch" } });
+    const supabase = {
+      auth: {
+        refreshSession: vi.fn(),
+      },
+      rpc,
+    };
+    const result = await completePrayerRequest(supabase as never, "prayer-1", "event-1");
+    expect(result.current_total).toBe(5);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/prayers/complete",
       expect.objectContaining({ method: "POST" }),
     );
-    expect(rpc).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 });

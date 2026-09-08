@@ -64,7 +64,15 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
     setError(null);
     try {
       const data = await task();
-      setSummary(data);
+      setSummary({
+        total_completed: data.total_completed,
+        current_round: data.current_round,
+        current_completed_count: data.current_completed_count,
+        progress_percent: data.progress_percent,
+        eligible_count: data.eligible_count,
+        spouse_prayer_selection: data.spouse_prayer_selection,
+        items: data.items ?? summary?.items ?? [],
+      });
       if (options?.resetShareCounts) {
         setDailySummary(clearedDailySummaryForReset);
       }

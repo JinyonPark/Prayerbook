@@ -27,15 +27,33 @@ export type RpcProgressSummary = {
   items: RpcProgressItem[];
 };
 
-export type RpcMutationResult = RpcProgressSummary & {
+export type CompletePrayerResult = {
+  prayer_item_id?: string;
+  completion_count?: number;
+  previous_count?: number;
+  previous_total: number;
+  current_total: number;
+  total_completed: number;
+  total_changed: boolean;
+  current_round: number;
+  current_completed_count: number;
+  eligible_count?: number;
+  progress_percent: number;
+  today_completion_count?: number;
+  today_unique_prayer_count?: number;
+  lifetime_completion_count?: number;
   operation_id: string | null;
   request_id?: string;
   affected_items: RpcAffectedItem[];
-  total_changed: boolean;
-  previous_total: number;
-  current_total: number;
   idempotent?: boolean;
+  spouse_prayer_selection?: "husband" | "wife" | null;
+  items?: RpcProgressItem[];
 };
+
+export type RpcMutationResult = Omit<RpcProgressSummary, "items"> &
+  CompletePrayerResult & {
+    items?: RpcProgressItem[];
+  };
 
 export type ReadingState = {
   last_prayer_item_id: string | null;

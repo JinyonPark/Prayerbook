@@ -1,29 +1,32 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { MouseEvent, ReactNode } from "react";
+import { perfMark } from "@/lib/perf/marks";
 
 type Props = {
   href: string;
   className?: string;
   children: ReactNode;
   onNavigate?: () => void | false;
+  prefetch?: boolean;
 };
 
-export function ReaderNavLink({ href, className, children, onNavigate }: Props) {
-  const router = useRouter();
+export function ReaderNavLink({ href, className, children, onNavigate, prefetch = true }: Props) {
   return (
-    <a
+    <Link
       href={href}
+      prefetch={prefetch}
       className={className}
       onClick={(event: MouseEvent<HTMLAnchorElement>) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
-        event.preventDefault();
-        if (onNavigate?.() === false) return;
-        router.push(href);
+        perfMark("prayer_navigation_click");
+        if (onNavigate?.() === false) {
+          event.preventDefault();
+        }
       }}
     >
       {children}
-    </a>
+    </Link>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { fetchDailyPrayerSummary, fetchProgressSummary } from "@/lib/supabase/rpc";
+import { bootstrapAppState, personalizationsFromBootstrap } from "@/lib/progress/bootstrap";
 import type { RpcProgressSummary } from "@/lib/progress/types";
 import type { ReadingState, UserPreferences } from "@/lib/progress/types";
 import { personalizationRowsFromInputs, type PersonalizationRow } from "@/lib/prayers/personalize";
@@ -20,12 +21,15 @@ import {
   type CachedPreferences,
 } from "@/lib/theme/preferences";
 import { hasPublicEnv } from "@/lib/validation/env";
+import { isAuthFailure, logDevError } from "@/lib/errors/inspect";
 import { emptyDailySummary, type DailyPrayerSummary } from "@/lib/progress/daily";
 import { parseShareFormat, type ShareFormatPreference } from "@/lib/progress/share-content";
 import { detectBrowserTimeZone, msUntilNextMidnight, normalizeTimeZone } from "@/lib/progress/timezone";
+import { perfMark } from "@/lib/perf/marks";
 
 type AppState = {
   summary: RpcProgressSummary | null;
+  bootReady: boolean;
   dailySummary: DailyPrayerSummary;
   timeZone: string;
   reading: ReadingState | null;
@@ -51,7 +55,7 @@ type AppState = {
 const AppStateContext = createContext<AppState | null>(null);
 
 type Props = {
-  children: React.ReactNode;
+  children: ReactNode;
   initialSummary: RpcProgressSummary | null;
   initialDailySummary?: DailyPrayerSummary | null;
   initialReading: ReadingState | null;
@@ -97,6 +101,10 @@ function preferenceUpsertRow(
   };
 }
 
+function sessionUserId(supabase: ReturnType<typeof createBrowserSupabaseClient>) {
+  return supabase.auth.getSession().then(({ data }) => data.session?.user?.id ?? null);
+}
+
 export function AppProviders({
   children,
   initialSummary,
@@ -120,8 +128,47 @@ export function AppProviders({
   const [prefs, setPrefs] = useState<CachedPreferences>(prefsFromServer(initialPrefs, defaultPreferences));
   const [online, setOnline] = useState(true);
   const [shareFormat, setShareFormat] = useState<ShareFormatPreference>(() => parseShareFormat(initialPrefs));
+  const [bootReady, setBootReady] = useState(Boolean(initialSummary));
   const timeZoneRef = useRef(timeZone);
   timeZoneRef.current = timeZone;
+  const hydratedDailyRef = useRef(Boolean(initialDailySummary?.local_date));
+
+  useEffect(() => {
+    if (bootReady || !hasPublicEnv()) {
+      if (!hasPublicEnv()) setBootReady(true);
+      return;
+    }
+    const supabase = createBrowserSupabaseClient();
+    void bootstrapAppState(supabase)
+      .then((state) => {
+        setSummary(state.summary);
+        setDailySummary(state.daily);
+        hydratedDailyRef.current = Boolean(state.daily.local_date);
+        setReading(state.reading);
+        setPrayerInputs(state.inputs);
+        setPersonalizations(personalizationsFromBootstrap(state));
+        setSpouseSelection(state.spouseSelection);
+        writeCachedSpouseSelection(state.spouseSelection);
+        setShareFormat(parseShareFormat(state.prefs));
+        setTimeZone(state.timeZone);
+        if (state.prefs) {
+          const next = prefsFromServer(state.prefs, readCachedPreferences());
+          setPrefs(next);
+          writeCachedPreferences(next);
+        }
+        perfMark("home_data_ready");
+        setBootReady(true);
+      })
+      .catch((error) => {
+        logDevError("bootstrapAppState", error);
+        if (isAuthFailure(error) && typeof window !== "undefined") {
+          const next = `${window.location.pathname}${window.location.search}`;
+          window.location.replace(`/login?next=${encodeURIComponent(next)}`);
+          return;
+        }
+        setBootReady(true);
+      });
+  }, [bootReady]);
 
   useEffect(() => {
     const cached = readCachedPreferences();
@@ -150,35 +197,20 @@ export function AppProviders({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!hasPublicEnv()) return;
-    const supabase = createBrowserSupabaseClient();
-    void supabase
-      .from("user_prayer_inputs")
-      .select("prayer_item_id, values, updated_at")
-      .then(({ data }) => {
-        if (!data) return;
-        setPrayerInputs(data as PrayerInputRow[]);
-        setPersonalizations(personalizationRowsFromInputs(data as PrayerInputRow[]));
-      });
-  }, []);
-
   const persistTimeZone = useCallback(async (nextZone: string) => {
     if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+    const userId = await sessionUserId(supabase);
+    if (!userId) return;
     const { error } = await supabase.from("user_preferences").upsert(
-      preferenceUpsertRow(user.id, prefs, {
+      preferenceUpsertRow(userId, prefs, {
         spouse_prayer_selection: spouseSelection,
         time_zone: nextZone,
       }),
     );
     if (error) {
       await supabase.from("user_preferences").upsert({
-        user_id: user.id,
+        user_id: userId,
         theme: prefs.theme,
         font_size: prefs.fontSize,
         line_height: prefs.lineHeight,
@@ -212,28 +244,31 @@ export function AppProviders({
     await refreshDaily();
   }, [refreshDaily]);
 
-  const syncDetectedTimeZone = useCallback(() => {
+  const syncDetectedTimeZone = useCallback((reason: "mount" | "resume" = "mount") => {
     const detected = detectBrowserTimeZone();
     if (detected !== timeZoneRef.current) {
       setTimeZone(detected);
       void persistTimeZone(detected);
+      void refreshDaily();
+      return;
     }
+    if (reason === "mount" && hydratedDailyRef.current) return;
     void refreshDaily();
   }, [persistTimeZone, refreshDaily]);
 
   useEffect(() => {
-    syncDetectedTimeZone();
-  }, [syncDetectedTimeZone]);
+    if (!bootReady) return;
+    syncDetectedTimeZone("mount");
+  }, [bootReady, syncDetectedTimeZone]);
 
   useEffect(() => {
     function onFocus() {
-      syncDetectedTimeZone();
+      syncDetectedTimeZone("resume");
       void refresh();
     }
     function onVisible() {
       if (document.visibilityState === "visible") {
-        syncDetectedTimeZone();
-        void refreshDaily();
+        syncDetectedTimeZone("resume");
       }
     }
     window.addEventListener("focus", onFocus);
@@ -275,19 +310,17 @@ export function AppProviders({
     writeCachedPreferences(next);
     if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+    const userId = await sessionUserId(supabase);
+    if (!userId) return;
     const { error } = await supabase.from("user_preferences").upsert(
-      preferenceUpsertRow(user.id, next, {
+      preferenceUpsertRow(userId, next, {
         spouse_prayer_selection: spouseSelection,
         time_zone: timeZoneRef.current,
       }),
     );
     if (error) {
       await supabase.from("user_preferences").upsert({
-        user_id: user.id,
+        user_id: userId,
         theme: next.theme,
         font_size: next.fontSize,
         line_height: next.lineHeight,
@@ -299,18 +332,16 @@ export function AppProviders({
     setShareFormat(next);
     if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+    const userId = await sessionUserId(supabase);
+    if (!userId) return;
     const { error } = await supabase.from("user_preferences").upsert({
-      user_id: user.id,
+      user_id: userId,
       share_selected_fields: next.selected,
       share_custom_template: next.customTemplate,
     });
     if (error) {
       await supabase.from("user_preferences").upsert({
-        user_id: user.id,
+        user_id: userId,
         theme: prefs.theme,
         font_size: prefs.fontSize,
         line_height: prefs.lineHeight,
@@ -324,12 +355,10 @@ export function AppProviders({
     writeCachedSpouseSelection(value);
     if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+    const userId = await sessionUserId(supabase);
+    if (!userId) return;
     const { error } = await supabase.from("user_preferences").upsert(
-      preferenceUpsertRow(user.id, prefs, {
+      preferenceUpsertRow(userId, prefs, {
         spouse_prayer_selection: value,
         time_zone: timeZoneRef.current,
       }),
@@ -372,6 +401,7 @@ export function AppProviders({
   const value = useMemo(
     () => ({
       summary,
+      bootReady,
       dailySummary,
       timeZone,
       reading,
@@ -395,6 +425,7 @@ export function AppProviders({
     }),
     [
       summary,
+      bootReady,
       dailySummary,
       timeZone,
       reading,

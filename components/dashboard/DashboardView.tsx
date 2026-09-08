@@ -131,7 +131,7 @@ function PrayerCollection({
           const done = item.category === "main" ? count >= round : null;
           return (
             <li key={item.id}>
-              <Link href={`/prayers/${item.slug}`} className="block px-4 py-3">
+              <Link href={`/prayers/${item.slug}`} prefetch={false} className="block px-4 py-3">
                 <p className="font-medium">
                   {item.item_number ? `${item.item_number}. ` : ""}
                   {item.title}

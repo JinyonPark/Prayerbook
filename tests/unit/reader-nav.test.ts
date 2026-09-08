@@ -27,7 +27,13 @@ describe("기도문 네비게이션", () => {
     expect(reader).not.toContain("setTocOpen(true)");
     expect(reader).toContain("setTocOpen((open) => !open)");
     expect(reader).toContain("max-lg:pointer-events-none");
-    expect(link).toContain("router.push(href)");
+    expect(reader).toContain("router.prefetch");
+    expect(reader).toContain("다음 기도 여는 중");
+    expect(reader).toContain("prayer_navigation_started");
+    expect(reader).toContain("getSession");
+    expect(reader).not.toContain("refreshDaily");
+    expect(link).toContain("next/link");
+    expect(link).toContain("prefetch");
   });
 
   it("목차 시트는 상단 탭으로 닫히고 항목 클릭을 가로채지 않는다", () => {

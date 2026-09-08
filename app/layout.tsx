@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { InstallPromptProvider } from "@/components/pwa/InstallPromptProvider";
+import { AppStartMark } from "@/components/perf/AppStartMark";
 import { INSTALL_CAPTURE_SCRIPT } from "@/lib/pwa/detect";
 import { THEME_INIT_SCRIPT } from "@/lib/theme/preferences";
 import "./globals.css";
@@ -47,7 +48,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a className="skip-link" href="#main">
           본문으로 건너뛰기
         </a>
-        <InstallPromptProvider>{children}</InstallPromptProvider>
+        <InstallPromptProvider>
+          <AppStartMark />
+          {children}
+        </InstallPromptProvider>
       </body>
     </html>
   );

@@ -34,3 +34,50 @@ test("홈에서 이어 기도하기 링크가 prefetch된다", async ({ page }) 
   const href = await continueLink.getAttribute("href");
   expect(href).toMatch(/^\/prayers\//);
 });
+
+test("완료 클릭은 complete 요청 한 번이고 전체 새로고침이 없다", async ({ page }) => {
+  test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
+  await login(page);
+  await page.goto("/prayers/dawn");
+  await expect(page.getByRole("article")).toBeVisible();
+  await expect(page.getByText(/누적 \d+회|누적 완료 \d+회/)).toBeVisible();
+  let loads = 0;
+  page.on("load", () => {
+    loads += 1;
+  });
+  const completeCalls = [];
+  const extraSummary = [];
+  page.on("request", (request) => {
+    const url = request.url();
+    if (request.method() === "POST" && (url.includes("complete_prayer") || url.includes("/api/prayers/complete"))) {
+      completeCalls.push(url);
+    }
+    if (url.includes("get_daily_prayer_summary") || url.includes("get_prayer_progress_summary") || url.includes("get_home_dashboard_summary")) {
+      extraSummary.push(url);
+    }
+  });
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  extraSummary.length = 0;
+  await page.getByRole("button", { name: /이번 \d+독 기도 완료|한 번 더 완료 기록|기도 완료 기록/ }).click();
+  await expect(page.getByText("저장 중")).toBeVisible();
+  await expect(page.getByText("저장 완료")).toBeVisible({ timeout: 20000 });
+  expect(completeCalls.length).toBe(1);
+  expect(extraSummary.length).toBe(0);
+  expect(loads).toBe(0);
+});
+
+test("다음 기도 이동이 전체 페이지 reload가 아니다", async ({ page }) => {
+  test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await page.goto("/prayers/dawn");
+  await expect(page.getByRole("article")).toBeVisible();
+  let loads = 0;
+  page.on("load", () => {
+    loads += 1;
+  });
+  await page.getByRole("link", { name: /다음 기도/ }).click();
+  await expect(page).not.toHaveURL(/\/prayers\/dawn$/);
+  await expect(page).toHaveURL(/\/prayers\//);
+  expect(loads).toBe(0);
+});

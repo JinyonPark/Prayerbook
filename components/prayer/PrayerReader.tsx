@@ -20,11 +20,12 @@ import { captureReadingAnchor, readingPersistEquals, restoreReadingAnchor } from
 import { getScrollRatio, restoreScrollRatio } from "@/lib/reading/scroll-ratio";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { completePrayerRequest } from "@/lib/progress/complete-request";
+import { applyCompleteResultToDaily, applyCompleteResultToSummary } from "@/lib/progress/complete-state";
 import { hasPublicEnv } from "@/lib/validation/env";
 import { eligibleCountFromSummary } from "@/lib/progress/calculate";
-import { applySuccessfulCompleteToDaily } from "@/lib/progress/daily";
 import { excludedSpouseItemNumber, resolveSpousePrayerSelection } from "@/lib/progress/spouse";
 import { getAdjacentSequentialPrayers } from "@/lib/prayers/sequential";
+import { perfLog, perfMark, perfMeasure } from "@/lib/perf/marks";
 import {
   remainingAutoScrollDelay,
   shouldIgnoreAutoScrollCancel,
@@ -53,7 +54,6 @@ export function PrayerReader({ prayer, prayers }: Props) {
     personalizations,
     prayerInputs,
     savePrayerInputs,
-    refreshDaily,
     setDailySummary,
   } = useAppState();
   const [tocOpen, setTocOpen] = useState(false);
@@ -65,6 +65,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const [inputEditorOpen, setInputEditorOpen] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(true);
+  const [openingHref, setOpeningHref] = useState<string | null>(null);
   const [chromeHeight, setChromeHeight] = useState(44);
   const restored = useRef(false);
   const lastChromeYRef = useRef(0);
@@ -167,16 +168,17 @@ export function PrayerReader({ prayer, prayers }: Props) {
       if (!hasPublicEnv() || autoRunningRef.current) return;
       const supabase = createBrowserSupabaseClient();
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+        data: { session },
+      } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
       const { error } = await supabase.from("user_reading_state").upsert({
-        user_id: user.id,
+        user_id: userId,
         ...payload,
       });
       if (error) {
         await supabase.from("user_reading_state").upsert({
-          user_id: user.id,
+          user_id: userId,
           last_prayer_item_id: payload.last_prayer_item_id,
           scroll_ratio: payload.scroll_ratio,
           last_opened_at: payload.last_opened_at,
@@ -187,6 +189,44 @@ export function PrayerReader({ prayer, prayers }: Props) {
     [prayer.id, setReading],
   );
   persistReadingRef.current = persistReading;
+
+  useEffect(() => {
+    function onHide() {
+      if (document.visibilityState === "hidden") void persistReadingRef.current();
+    }
+    function onPageHide() {
+      void persistReadingRef.current();
+    }
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, []);
+
+  useEffect(() => {
+    perfMark("target_route_loaded");
+    perfMark("target_prayer_title_visible");
+    perfMark("target_prayer_interactive");
+    perfMeasure("prayer_nav_title", "prayer_navigation_click", "target_prayer_title_visible");
+    perfMeasure("prayer_nav_body", "prayer_navigation_click", "target_prayer_interactive");
+    perfLog("prayer_nav");
+  }, [prayer.slug]);
+
+  useEffect(() => {
+    const saveData =
+      typeof navigator !== "undefined" &&
+      "connection" in navigator &&
+      Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData);
+    if (saveData) return;
+    const prefetch = () => {
+      if (nextPrayer) router.prefetch(`/prayers/${nextPrayer.slug}`);
+      if (previousPrayer) router.prefetch(`/prayers/${previousPrayer.slug}`);
+    };
+    const id = window.setTimeout(prefetch, 250);
+    return () => window.clearTimeout(id);
+  }, [nextPrayer, previousPrayer, router]);
 
   const cancelAutoStart = useCallback(() => {
     autoCancelRef.current = true;
@@ -204,6 +244,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
     setReachedEnd(false);
     setAutoRunning(false);
     setChromeVisible(true);
+    setOpeningHref(null);
     lastChromeYRef.current = 0;
     setTocOpen(false);
     setStatus("idle");
@@ -508,7 +549,9 @@ export function PrayerReader({ prayer, prayers }: Props) {
 
   async function onComplete() {
     if (status === "saving") return;
+    perfMark("complete_click");
     setStatus("saving");
+    perfMark("complete_ui_pending_visible");
     setError(null);
     if (!completeEventId.current) completeEventId.current = crypto.randomUUID();
     const eventId = completeEventId.current;
@@ -516,21 +559,21 @@ export function PrayerReader({ prayer, prayers }: Props) {
       const supabase = createBrowserSupabaseClient();
       const result = await completePrayerRequest(supabase, prayer.id, eventId);
       completeEventId.current = null;
-      setSummary(result);
+      setSummary((current) => applyCompleteResultToSummary(current, result, prayer.id));
+      setDailySummary((current) =>
+        applyCompleteResultToDaily(current, result, {
+          prayerItemId: prayer.id,
+          prayerTitle: prayer.title,
+          itemNumber: prayer.item_number,
+          category: prayer.category,
+        }),
+      );
+      perfMark("complete_state_updated");
       setStatus("saved");
+      perfMark("complete_success_visible");
+      perfMeasure("complete_click_to_success", "complete_click", "complete_success_visible");
+      perfLog("complete");
       if (result.total_changed) setCelebration(result.current_total);
-      void refreshDaily().then((refreshed) => {
-        if (refreshed) return;
-        setDailySummary((current) =>
-          applySuccessfulCompleteToDaily(current, {
-            prayerItemId: prayer.id,
-            prayerTitle: prayer.title,
-            itemNumber: prayer.item_number,
-            category: prayer.category,
-            idempotent: result.idempotent,
-          }),
-        );
-      });
     } catch (err) {
       logDevError("onComplete", err);
       setStatus("failed");
@@ -557,6 +600,13 @@ export function PrayerReader({ prayer, prayers }: Props) {
     void persistReading();
   }
 
+  function startNavigation(href: string) {
+    perfMark("prayer_navigation_started");
+    rememberReading();
+    setTocOpen(false);
+    setOpeningHref(href);
+  }
+
   const toc = (
     <nav aria-label="기도 목차">
       <ul className="space-y-1">
@@ -564,11 +614,14 @@ export function PrayerReader({ prayer, prayers }: Props) {
           <li key={item.id}>
             <ReaderNavLink
               href={`/prayers/${item.slug}`}
+              prefetch={false}
               className={`block rounded-lg px-2 py-2 ${item.slug === prayer.slug ? "bg-[var(--bg)] font-semibold" : ""}`}
               onNavigate={() => {
-                rememberReading();
-                setTocOpen(false);
-                if (item.slug === prayer.slug) return false;
+                if (item.slug === prayer.slug) {
+                  setTocOpen(false);
+                  return false;
+                }
+                startNavigation(`/prayers/${item.slug}`);
               }}
             >
               {item.item_number ? `${item.item_number}. ` : ""}
@@ -710,15 +763,22 @@ export function PrayerReader({ prayer, prayers }: Props) {
           ) : null}
           {prayer.category === "main" ? (
             <p>
-              누적 {count}회 · 현재 {round}독 · {excluded ? "진행률 제외" : doneThisRound ? `이번 ${round}독 완료됨` : `이번 ${round}독 미완료`}
+              {summary
+                ? `누적 ${count}회 · 현재 ${round}독 · ${excluded ? "진행률 제외" : doneThisRound ? `이번 ${round}독 완료됨` : `이번 ${round}독 미완료`}`
+                : "진행 정보를 불러오는 중"}
             </p>
           ) : (
-            <p>누적 완료 {count}회</p>
+            <p>{summary ? `누적 완료 ${count}회` : "진행 정보를 불러오는 중"}</p>
           )}
           {status === "saving" ? <p>저장 중</p> : null}
           {status === "saved" ? <p>저장 완료</p> : null}
           {status === "failed" ? <p role="alert">{error}</p> : null}
-          <Button className="w-full active:opacity-70" onClick={() => void onComplete()} disabled={status === "saving"}>
+          <Button
+            className="w-full active:opacity-70"
+            onClick={() => void onComplete()}
+            aria-busy={status === "saving"}
+            aria-disabled={status === "saving"}
+          >
             {status === "saving"
               ? "저장 중"
               : prayer.category === "supplementary"
@@ -733,9 +793,9 @@ export function PrayerReader({ prayer, prayers }: Props) {
               <ReaderNavLink
                 href={`/prayers/${previousPrayer.slug}`}
                 className="touch-target rounded-xl border border-[var(--border)] px-4 py-2.5 active:opacity-70"
-                onNavigate={rememberReading}
+                onNavigate={() => startNavigation(`/prayers/${previousPrayer.slug}`)}
               >
-                이전 기도
+                {openingHref === `/prayers/${previousPrayer.slug}` ? "이전 기도 여는 중…" : "이전 기도"}
               </ReaderNavLink>
             ) : (
               <span className="touch-target inline-flex items-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-[var(--muted)]">이전 기도</span>
@@ -744,9 +804,9 @@ export function PrayerReader({ prayer, prayers }: Props) {
               <ReaderNavLink
                 href={`/prayers/${nextPrayer.slug}`}
                 className="touch-target rounded-xl border border-[var(--border)] px-4 py-2.5 active:opacity-70"
-                onNavigate={rememberReading}
+                onNavigate={() => startNavigation(`/prayers/${nextPrayer.slug}`)}
               >
-                다음 기도
+                {openingHref === `/prayers/${nextPrayer.slug}` ? "다음 기도 여는 중…" : "다음 기도"}
               </ReaderNavLink>
             ) : (
               <span className="touch-target inline-flex items-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-[var(--muted)]">다음 기도</span>

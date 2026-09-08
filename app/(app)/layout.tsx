@@ -1,17 +1,8 @@
-import { Suspense } from "react";
-import { redirect } from "next/navigation";
 import { AppProviders } from "@/components/providers/AppProviders";
-import { AppBootSkeleton } from "@/components/layout/AppBootSkeleton";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { fetchDailyPrayerSummary, fetchProgressSummary } from "@/lib/supabase/rpc";
+import { AppHomeShell } from "@/components/layout/AppHomeShell";
 import { hasPublicEnv } from "@/lib/validation/env";
-import type { ReadingState, UserPreferences } from "@/lib/progress/types";
-import { parseSpousePrayerSelection } from "@/lib/progress/spouse";
-import { DEFAULT_TIME_ZONE, normalizeTimeZone } from "@/lib/progress/timezone";
 
-export const dynamic = "force-dynamic";
-
-export default async function AppGroupLayout({ children }: { children: React.ReactNode }) {
+export default function AppGroupLayout({ children }: { children: React.ReactNode }) {
   if (!hasPublicEnv()) {
     return (
       <AppProviders initialSummary={null} initialReading={null} initialPrefs={null} initialPersonalizations={[]}>
@@ -22,73 +13,8 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
   }
 
   return (
-    <Suspense fallback={<AppBootSkeleton />}>
-      <AppDataProviders>{children}</AppDataProviders>
-    </Suspense>
-  );
-}
-
-async function AppDataProviders({ children }: { children: React.ReactNode }) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const [summaryResult, prefsResultRaw, readingResultRaw, dailyResult] = await Promise.all([
-    fetchProgressSummary(supabase).catch(() => ({
-      total_completed: 0,
-      current_round: 1,
-      current_completed_count: 0,
-      progress_percent: 0,
-      eligible_count: 0,
-      items: [],
-    })),
-    supabase
-      .from("user_preferences")
-      .select("theme, font_size, line_height, spouse_prayer_selection, auto_scroll_speed, auto_scroll_enabled, conceived_show_all_names, time_zone, share_selected_fields, share_custom_template")
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("user_reading_state")
-      .select("last_prayer_item_id, scroll_ratio, anchor_key, anchor_offset, last_opened_at, updated_at")
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    fetchDailyPrayerSummary(supabase).catch(() => null),
-  ]);
-
-  const prefsFallback =
-    prefsResultRaw.error
-      ? await supabase
-          .from("user_preferences")
-          .select("theme, font_size, line_height, spouse_prayer_selection, auto_scroll_speed, auto_scroll_enabled, time_zone")
-          .eq("user_id", user.id)
-          .maybeSingle()
-      : prefsResultRaw;
-  const prefsResult = prefsFallback.error ? { data: null } : prefsFallback;
-  const readingResult = readingResultRaw.error ? { data: null } : readingResultRaw;
-
-  const prefs = prefsResult.data as (UserPreferences & {
-    spouse_prayer_selection?: string | null;
-    auto_scroll_speed?: string;
-    auto_scroll_enabled?: boolean;
-    conceived_show_all_names?: boolean;
-    time_zone?: string;
-    share_selected_fields?: UserPreferences["share_selected_fields"];
-    share_custom_template?: string | null;
-  }) | null;
-  const timeZone = normalizeTimeZone(prefs?.time_zone ?? DEFAULT_TIME_ZONE);
-
-  return (
-    <AppProviders
-      initialSummary={summaryResult}
-      initialDailySummary={dailyResult}
-      initialReading={(readingResult.data as ReadingState | null) ?? null}
-      initialPrefs={prefs}
-      initialSpouseSelection={parseSpousePrayerSelection(prefs?.spouse_prayer_selection)}
-      initialTimeZone={timeZone}
-    >
-      {children}
+    <AppProviders initialSummary={null} initialReading={null} initialPrefs={null} initialPersonalizations={[]}>
+      <AppHomeShell>{children}</AppHomeShell>
     </AppProviders>
   );
 }

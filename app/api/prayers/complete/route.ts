@@ -24,12 +24,6 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "AUTH_EXPIRED" }, { status: 401 });
-    }
     const result = await rpcComplete(supabase, parsed.data.prayerItemId, parsed.data.clientEventId);
     return NextResponse.json(result);
   } catch (error) {

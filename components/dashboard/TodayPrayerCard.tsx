@@ -1,9 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useAppState } from "@/components/providers/AppProviders";
-import { ShareContentDialog } from "@/components/dashboard/ShareContentDialog";
 import { eligibleCountFromSummary } from "@/lib/progress/calculate";
+
+const ShareContentDialog = dynamic(
+  () => import("@/components/dashboard/ShareContentDialog").then((mod) => ({ default: mod.ShareContentDialog })),
+  {
+    ssr: false,
+    loading: () => <div className="mt-4 h-11 w-full rounded-xl bg-[var(--border)]" aria-hidden />,
+  },
+);
 
 type Props = {
   startHref?: string;
