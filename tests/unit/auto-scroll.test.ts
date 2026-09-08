@@ -66,6 +66,8 @@ describe("자동 스크롤", () => {
     expect(nextReaderChromeVisible({ current: false, scrollY: 40, deltaY: -20 })).toBe(true);
     expect(nextReaderChromeVisible({ current: false, scrollY: 4, deltaY: 20 })).toBe(true);
     expect(nextReaderChromeVisible({ current: false, scrollY: 80, deltaY: 1 })).toBe(false);
+    expect(nextReaderChromeVisible({ current: true, scrollY: 8, deltaY: 1, autoRunning: true })).toBe(false);
+    expect(nextReaderChromeVisible({ current: true, scrollY: 80, deltaY: 1, autoRunning: true })).toBe(false);
     expect(chromeVisibleFromFingerMove(20, false)).toBe(true);
     expect(chromeVisibleFromFingerMove(-20, true)).toBe(false);
   });

@@ -121,9 +121,10 @@ test("키보드만으로 복사 버튼을 열 수 있다", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "공유할 내용" })).toHaveCount(0);
 });
 
-test("기록 화면에도 오늘의 기도 요약이 있다", async ({ page }) => {
+test("기록 화면에는 오늘의 기도 카드가 없다", async ({ page }) => {
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await login(page);
   await page.goto("/history");
-  await expect(page.getByRole("heading", { name: "오늘의 기도 기록" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "오늘의 기도 기록" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "오늘의 기도", exact: true })).toHaveCount(0);
 });

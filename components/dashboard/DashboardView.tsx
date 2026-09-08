@@ -65,7 +65,7 @@ export function DashboardView({ prayers }: { prayers: PrayerItemRecord[] }) {
           <ProgressBar value={percent} label={`진행률 ${Math.round(percent)}%`} />
         </div>
       </section>
-      <TodayPrayerCard variant="dashboard" startHref={nextPrayer ? `/prayers/${nextPrayer.slug}` : `/prayers/${prayers[0]?.slug ?? "dawn"}`} />
+      <TodayPrayerCard startHref={nextPrayer ? `/prayers/${nextPrayer.slug}` : `/prayers/${prayers[0]?.slug ?? "dawn"}`} />
       </div>
 
       {lastPrayer && reading ? (

@@ -77,7 +77,6 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const lastReadingRef = useRef(reading);
   const persistReadingRef = useRef<(opened?: boolean) => Promise<void>>(async () => {});
   const lastSaved = useRef(0);
-  const userScrolling = useRef(false);
   const restoring = useRef(false);
   const completeEventId = useRef<string | null>(null);
   const autoCancelRef = useRef(false);
@@ -110,6 +109,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const excluded = Boolean(progress?.excluded_from_progress);
   const doneThisRound = prayer.category === "main" && !excluded ? count >= round : false;
   const numberedTitle = `${prayer.item_number ? `${prayer.item_number}. ` : ""}${prayer.title}`;
+  const chromeShown = chromeVisible && !autoRunning;
   const appliedNames = childNames ?? (focusName || nameRows[0]?.value ? [focusName || nameRows[0]?.value] : []);
   const displayMarkdown = applyPrayerInputValues(
     applyPersonalization(prayer.content_md, prayer.slug, {
@@ -185,8 +185,6 @@ export function PrayerReader({ prayer, prayers }: Props) {
     setAutoRunning(false);
     void persistReadingRef.current();
   }, []);
-  const cancelAutoStartRef = useRef(cancelAutoStart);
-  cancelAutoStartRef.current = cancelAutoStart;
 
   useEffect(() => {
     restored.current = false;
@@ -254,13 +252,12 @@ export function PrayerReader({ prayer, prayers }: Props) {
   useEffect(() => {
     let frame = 0;
     function onViewportChange() {
-      if (userScrolling.current || restoring.current || autoRunningRef.current) return;
+      if (restoring.current || autoRunningRef.current) return;
       window.cancelAnimationFrame(frame);
       const article = articleWrapRef.current?.querySelector(".reader-article") as HTMLElement | null;
       const snapshot = captureReadingAnchor(article);
       frame = window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
-          if (userScrolling.current) return;
           restoreReadingAnchor(article, snapshot.anchorKey, snapshot.anchorOffset);
         });
       });
@@ -300,12 +297,10 @@ export function PrayerReader({ prayer, prayers }: Props) {
     chromeVisibleRef.current = window.scrollY <= 12;
     setChromeVisible(chromeVisibleRef.current);
 
-    function applyChrome(next: boolean, cancelAuto: boolean) {
-      if (chromeVisibleRef.current !== next) {
-        chromeVisibleRef.current = next;
-        setChromeVisible(next);
-      }
-      if (cancelAuto && next && autoRunningRef.current) cancelAutoStartRef.current();
+    function applyChrome(next: boolean) {
+      if (chromeVisibleRef.current === next) return;
+      chromeVisibleRef.current = next;
+      setChromeVisible(next);
     }
 
     function onTouchStart(event: TouchEvent) {
@@ -313,25 +308,37 @@ export function PrayerReader({ prayer, prayers }: Props) {
       lastTouchYRef.current = event.touches[0]?.clientY ?? 0;
     }
     function onTouchMove(event: TouchEvent) {
+      if (autoRunningRef.current) return;
       const y = event.touches[0]?.clientY ?? lastTouchYRef.current;
       const fingerDelta = y - lastTouchYRef.current;
       lastTouchYRef.current = y;
-      const next = chromeVisibleFromFingerMove(fingerDelta, chromeVisibleRef.current);
-      applyChrome(next, next);
+      applyChrome(chromeVisibleFromFingerMove(fingerDelta, chromeVisibleRef.current));
     }
     function onTouchEnd() {
       touchingChromeRef.current = false;
     }
     function onWheel(event: WheelEvent) {
-      if (event.deltaY < -4) applyChrome(true, true);
-      else if (event.deltaY > 4) applyChrome(false, false);
+      if (autoRunningRef.current) return;
+      if (event.deltaY < -4) applyChrome(true);
+      else if (event.deltaY > 4) applyChrome(false);
     }
     function onChromeScroll() {
       const y = window.scrollY || document.documentElement.scrollTop || 0;
       const deltaY = y - lastChromeYRef.current;
       lastChromeYRef.current = y;
+      if (autoRunningRef.current) {
+        applyChrome(false);
+        return;
+      }
       if (touchingChromeRef.current) return;
-      applyChrome(nextReaderChromeVisible({ current: chromeVisibleRef.current, scrollY: y, deltaY }), false);
+      applyChrome(
+        nextReaderChromeVisible({
+          current: chromeVisibleRef.current,
+          scrollY: y,
+          deltaY,
+          autoRunning: false,
+        }),
+      );
     }
 
     window.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -368,6 +375,12 @@ export function PrayerReader({ prayer, prayers }: Props) {
   useEffect(() => {
     if (prefs.autoScrollEnabled) setReachedEnd(false);
   }, [prefs.autoScrollEnabled]);
+
+  useEffect(() => {
+    if (!autoRunning) return;
+    chromeVisibleRef.current = false;
+    setChromeVisible(false);
+  }, [autoRunning]);
 
   useEffect(() => {
     window.clearTimeout(autoTimerRef.current);
@@ -454,7 +467,6 @@ export function PrayerReader({ prayer, prayers }: Props) {
       if (
         restored.current &&
         !restoring.current &&
-        !userScrolling.current &&
         document.visibilityState === "visible"
       ) {
         const max = document.documentElement.scrollHeight - window.innerHeight;
@@ -470,28 +482,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
       frame = window.requestAnimationFrame(tick);
     }
     frame = window.requestAnimationFrame(tick);
-
-    function pauseFromUser() {
-      if (restoring.current) return;
-      userScrolling.current = true;
-      window.setTimeout(() => {
-        userScrolling.current = false;
-      }, 600);
-    }
-    function pauseFromKey(event: KeyboardEvent) {
-      if (!isManualScrollKey(event.key)) return;
-      pauseFromUser();
-    }
-
-    window.addEventListener("wheel", pauseFromUser, { passive: true });
-    window.addEventListener("touchmove", pauseFromUser, { passive: true });
-    window.addEventListener("keydown", pauseFromKey);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("wheel", pauseFromUser);
-      window.removeEventListener("touchmove", pauseFromUser);
-      window.removeEventListener("keydown", pauseFromKey);
-    };
+    return () => window.cancelAnimationFrame(frame);
   }, [autoRunning, reachedEnd, overlayOpen, prefs.autoScrollSpeed]);
 
   useEffect(() => {
@@ -597,7 +588,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
         <div
           ref={chromeRef}
           className={`reader-chrome z-[200] border-b border-[var(--border)] bg-[var(--bg)] transition-transform duration-200 ease-out lg:sticky lg:top-[var(--header-h)] lg:-mx-5 lg:mb-4 lg:px-5 ${
-            chromeVisible ? "translate-y-0" : "pointer-events-none max-lg:-translate-y-full"
+            chromeShown ? "translate-y-0" : "max-lg:pointer-events-none max-lg:-translate-y-full"
           }`}
         >
           <div className="mx-auto flex max-w-[760px] items-start gap-1 px-3 py-1 lg:px-0 lg:py-2">

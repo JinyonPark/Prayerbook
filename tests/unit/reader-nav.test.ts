@@ -11,6 +11,10 @@ describe("기도문 네비게이션", () => {
     expect(reader).not.toContain("truncate font-semibold");
     expect(reader).toContain("reader-chrome-spacer");
     expect(reader).toContain("chromeVisibleFromFingerMove");
+    expect(reader).toContain("chromeShown");
+    expect(reader).toContain("chromeVisible && !autoRunning");
+    expect(reader).not.toContain("pauseFromUser");
+    expect(reader).toContain("if (autoRunningRef.current) return");
     expect(reader).toContain("-translate-y-full");
     expect(reader).toContain('href="/"');
     expect(reader).toContain("href={`/prayers/${item.slug}`}");

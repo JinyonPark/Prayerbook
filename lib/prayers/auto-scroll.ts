@@ -63,10 +63,12 @@ export function nextReaderChromeVisible(options: {
   current: boolean;
   scrollY: number;
   deltaY: number;
+  autoRunning?: boolean;
   topThreshold?: number;
   hideDelta?: number;
   showDelta?: number;
 }): boolean {
+  if (options.autoRunning) return false;
   const topThreshold = options.topThreshold ?? 12;
   const hideDelta = options.hideDelta ?? 4;
   const showDelta = options.showDelta ?? 4;

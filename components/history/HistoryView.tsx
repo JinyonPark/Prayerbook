@@ -8,7 +8,6 @@ import { toUserMessage } from "@/lib/errors/user-message";
 import type { HistoryOperation } from "@/lib/progress/types";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { rpcDeleteAllHistory, rpcDeleteHistoryOperation } from "@/lib/supabase/rpc";
-import { TodayPrayerCard } from "@/components/dashboard/TodayPrayerCard";
 
 const TYPE_LABEL: Record<string, string> = {
   complete: "기도 완료",
@@ -83,7 +82,6 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
   if (items.length === 0) {
     return (
       <div className="space-y-3">
-        <TodayPrayerCard variant="history" />
         {error ? <p role="alert">{error}</p> : null}
         <p className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">아직 수정·초기화 이력이 없습니다.</p>
       </div>
@@ -92,7 +90,6 @@ export function HistoryView({ operations }: { operations: HistoryOperation[] }) 
 
   return (
     <div className="space-y-3">
-      <TodayPrayerCard variant="history" />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-[var(--muted)]">목록에서만 지워지며, 기도 완료 횟수와 오늘 기도 횟수는 바뀌지 않습니다.</p>
         <Button variant="danger" disabled={!online || pending} onClick={() => setConfirm("all")}>

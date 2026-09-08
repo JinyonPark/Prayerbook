@@ -13,7 +13,6 @@ import {
   type DailyPrayerSummary,
 } from "@/lib/progress/daily";
 import { copyTextToClipboard, shareOrCopyText } from "@/lib/progress/clipboard";
-import { formatKoreanDate } from "@/lib/progress/timezone";
 
 const COPY_SUCCESS = "오늘의 기도 기록을 복사했습니다.";
 const COPY_FAILURE = "기록을 복사하지 못했습니다.\n다시 시도해 주세요.";
@@ -21,11 +20,10 @@ const SHARE_COPY_FALLBACK = "이 브라우저에서는 공유창을 열 수 없�
 const SHARE_FAILURE = "기도 기록을 공유하지 못했습니다.\n다시 시도해 주세요.";
 
 type Props = {
-  variant: "dashboard" | "history";
   startHref?: string;
 };
 
-export function TodayPrayerCard({ variant, startHref = "/prayers" }: Props) {
+export function TodayPrayerCard({ startHref = "/prayers" }: Props) {
   const { dailySummary, summary, refreshDaily } = useAppState();
   const progress = {
     totalCompleted: summary?.total_completed ?? 0,
@@ -36,58 +34,29 @@ export function TodayPrayerCard({ variant, startHref = "/prayers" }: Props) {
   const count = dailySummary.total_completion_count;
   const unique = dailySummary.unique_prayer_count;
   const empty = count === 0;
-  const heading = variant === "history" ? "오늘의 기도 기록" : "오늘의 기도";
 
   return (
-    <section
-      className={`rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 ${
-        variant === "dashboard" ? "w-full max-w-xl lg:max-w-md" : "w-full"
-      }`}
-    >
-      <h2 className="text-lg font-semibold">{heading}</h2>
-      {variant === "history" && dailySummary.local_date ? (
-        <p className="mt-1 text-sm text-[var(--muted)]">{formatKoreanDate(dailySummary.local_date)}</p>
-      ) : null}
+    <section className="w-full max-w-xl rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 lg:max-w-md">
+      <h2 className="text-lg font-semibold">오늘의 기도</h2>
       {empty ? (
         <>
           <p className="mt-2 break-words">아직 완료한 기도가 없습니다.</p>
           <p className="mt-1 text-sm text-[var(--muted)]">기도를 완료하면 이곳에 기록됩니다.</p>
-          {variant === "dashboard" ? (
-            <Link
-              href={startHref}
-              className="touch-target mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--accent)] px-4 py-2.5 text-[var(--accent-text)]"
-            >
-              기도 시작하기
-            </Link>
-          ) : null}
+          <Link
+            href={startHref}
+            className="touch-target mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--accent)] px-4 py-2.5 text-[var(--accent-text)]"
+          >
+            기도 시작하기
+          </Link>
         </>
       ) : (
         <>
           <p className="mt-2 break-words">오늘 총 {count}회 기도했습니다.</p>
           <p className="mt-1 break-words text-[var(--muted)]">완료한 기도 항목 {unique}개</p>
-          {variant === "history" ? <TodayItemList items={dailySummary.items} /> : null}
-          {variant === "history" ? <p className="mt-3 font-medium">오늘 총 {count}회</p> : null}
           <ShareActions summary={dailySummary} progress={progress} onRefresh={refreshDaily} />
         </>
       )}
     </section>
-  );
-}
-
-function TodayItemList({ items }: { items: DailyPrayerSummary["items"] }) {
-  if (items.length === 0) return null;
-  return (
-    <ul className="mt-3 space-y-2">
-      {items.map((item) => (
-        <li key={item.prayer_item_id} className="flex items-start justify-between gap-3">
-          <span className="min-w-0 break-words">
-            {item.item_number ? `${item.item_number}. ` : ""}
-            {item.prayer_title}
-          </span>
-          <span className="shrink-0 tabular-nums">{item.completion_count}회</span>
-        </li>
-      ))}
-    </ul>
   );
 }
 
