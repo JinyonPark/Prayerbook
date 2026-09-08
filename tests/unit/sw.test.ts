@@ -6,7 +6,7 @@ describe("service worker", () => {
   const sw = readFileSync(path.join(process.cwd(), "public/sw.js"), "utf8");
 
   it("Next 라우터 RSC 요청은 가로채지 않는다", () => {
-    expect(sw).toContain("prayer-book-v20");
+    expect(sw).toContain("prayer-book-v21");
     expect(sw).toContain("isNextRouterRequest");
     expect(sw).toContain('searchParams.has("_rsc")');
     expect(sw).toContain('headers.has("RSC")');

@@ -21,6 +21,7 @@ import {
 } from "@/lib/theme/preferences";
 import { hasPublicEnv } from "@/lib/validation/env";
 import { emptyDailySummary, type DailyPrayerSummary } from "@/lib/progress/daily";
+import { parseShareFormat, type ShareFormatPreference } from "@/lib/progress/share-content";
 import { detectBrowserTimeZone, msUntilNextMidnight, normalizeTimeZone } from "@/lib/progress/timezone";
 
 type AppState = {
@@ -43,6 +44,8 @@ type AppState = {
   savePrayerInputs: (prayerItemId: string, values: PrayerInputValues) => Promise<void>;
   refresh: () => Promise<void>;
   refreshDaily: () => Promise<boolean>;
+  shareFormat: ShareFormatPreference;
+  updateShareFormat: (format: ShareFormatPreference) => Promise<void>;
 };
 
 const AppStateContext = createContext<AppState | null>(null);
@@ -116,6 +119,7 @@ export function AppProviders({
   const [spouseSelection, setSpouseSelection] = useState<SpousePrayerSelection>(initialSpouseSelection);
   const [prefs, setPrefs] = useState<CachedPreferences>(prefsFromServer(initialPrefs, defaultPreferences));
   const [online, setOnline] = useState(true);
+  const [shareFormat, setShareFormat] = useState<ShareFormatPreference>(() => parseShareFormat(initialPrefs));
   const timeZoneRef = useRef(timeZone);
   timeZoneRef.current = timeZone;
 
@@ -130,6 +134,7 @@ export function AppProviders({
       readCachedSpouseSelection();
     setSpouseSelection(nextSpouse);
     writeCachedSpouseSelection(nextSpouse);
+    setShareFormat(parseShareFormat(initialPrefs));
     if (initialDailySummary) setDailySummary(initialDailySummary);
     setTimeZone(normalizeTimeZone(initialTimeZone ?? initialPrefs?.time_zone));
     setOnline(navigator.onLine);
@@ -289,6 +294,29 @@ export function AppProviders({
     }
   }, [prefs, spouseSelection]);
 
+  const updateShareFormat = useCallback(async (next: ShareFormatPreference) => {
+    setShareFormat(next);
+    if (!hasPublicEnv()) return;
+    const supabase = createBrowserSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase.from("user_preferences").upsert({
+      user_id: user.id,
+      share_selected_fields: next.selected,
+      share_custom_template: next.customTemplate,
+    });
+    if (error) {
+      await supabase.from("user_preferences").upsert({
+        user_id: user.id,
+        theme: prefs.theme,
+        font_size: prefs.fontSize,
+        line_height: prefs.lineHeight,
+      });
+    }
+  }, [prefs.theme, prefs.fontSize, prefs.lineHeight]);
+
   const updateSpouseSelection = useCallback(async (value: SpousePrayerSelection) => {
     const previous = spouseSelection;
     setSpouseSelection(value);
@@ -361,6 +389,8 @@ export function AppProviders({
       savePrayerInputs,
       refresh,
       refreshDaily,
+      shareFormat,
+      updateShareFormat,
     }),
     [
       summary,
@@ -377,6 +407,8 @@ export function AppProviders({
       savePrayerInputs,
       refresh,
       refreshDaily,
+      shareFormat,
+      updateShareFormat,
     ],
   );
 

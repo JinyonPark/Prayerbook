@@ -1,4 +1,4 @@
-const VERSION = "prayer-book-v20";
+const VERSION = "prayer-book-v21";
 const SHELL = ["/", "/login", "/install", "/manifest.webmanifest", "/offline.html", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {

@@ -55,6 +55,13 @@ export type UserPreferences = {
   auto_scroll_enabled?: boolean;
   conceived_show_all_names?: boolean;
   time_zone?: string;
+  share_selected_fields?: {
+    today?: boolean;
+    lifetime?: boolean;
+    total?: boolean;
+    progress?: boolean;
+  } | null;
+  share_custom_template?: string | null;
 };
 
 export type HistoryOperation = {

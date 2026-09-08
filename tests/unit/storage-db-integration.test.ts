@@ -13,6 +13,7 @@ describe("DB 통합 테스트", () => {
       "20240909000015_storage_rpc_rewrite.sql",
       "20240909000016_inputs_login.sql",
       "20240909000020_lifetime_prayer_totals.sql",
+      "20240909000021_share_format_preference.sql",
     ];
     for (const file of files) {
       expect(existsSync(path.join(process.cwd(), "supabase/migrations", file))).toBe(true);

@@ -72,7 +72,7 @@ for (const viewport of viewports) {
     await page.goto("/");
     const card = page.getByRole("heading", { name: "오늘의 기도" });
     await expect(card).toBeVisible();
-    const copy = page.getByRole("button", { name: "오늘의 기도 결과 복사" });
+    const copy = page.getByRole("button", { name: "오늘의 기도 복사 또는 공유" });
     await expect(copy).toBeVisible();
     const box = await copy.boundingBox();
     expect(box).toBeTruthy();
@@ -90,10 +90,10 @@ test("320px에서 복사 팝업이 viewport 안에 있다", async ({ page }) => 
   await mockVisualViewport(page, 56, 520, 320);
   await login(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "오늘의 기도 결과 복사" }).click();
-  const dialog = page.getByRole("dialog", { name: "복사할 내용" });
+  await page.getByRole("button", { name: "오늘의 기도 복사 또는 공유" }).click();
+  const dialog = page.getByRole("dialog", { name: "오늘의 기록" });
   await expect(dialog).toBeVisible();
-  const title = dialog.getByRole("heading", { name: "복사할 내용" });
+  const title = dialog.getByRole("heading", { name: "오늘의 기록" });
   const copy = dialog.getByRole("button", { name: "복사" });
   for (const loc of [title, copy]) {
     const box = await loc.boundingBox();
@@ -125,11 +125,11 @@ test("키보드만으로 복사 버튼을 열 수 있다", async ({ page }) => {
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await login(page);
   await page.goto("/");
-  const copy = page.getByRole("button", { name: "오늘의 기도 결과 복사" });
+  const copy = page.getByRole("button", { name: "오늘의 기도 복사 또는 공유" });
   await copy.focus();
   await expect(copy).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("dialog", { name: "복사할 내용" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "오늘의 기록" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(copy).toBeFocused();
@@ -143,13 +143,13 @@ test("기록 화면에는 오늘의 기도 카드가 없다", async ({ page }) =
   await expect(page.getByRole("heading", { name: "오늘의 기도", exact: true })).toHaveCount(0);
 });
 
-test("결과 복사 흐름 A: 제목, 선택, 편집, 복사", async ({ page }) => {
+test("복사·공유 흐름 A: 제목, 선택, 편집, 복사", async ({ page }) => {
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await installShareMocks(page);
   await login(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "오늘의 기도 결과 복사" }).click();
-  const dialog = page.getByRole("dialog", { name: "복사할 내용" });
+  await page.getByRole("button", { name: "오늘의 기도 복사 또는 공유" }).click();
+  const dialog = page.getByRole("dialog", { name: "오늘의 기록" });
   await expect(dialog).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(1);
   await expect(dialog.getByRole("checkbox")).toHaveCount(4);
@@ -163,13 +163,13 @@ test("결과 복사 흐름 A: 제목, 선택, 편집, 복사", async ({ page }) 
   await expect(page.getByRole("dialog")).toHaveCount(1);
 });
 
-test("공유하기 흐름 B: 제목, 편집, 공유, URL 없음", async ({ page }) => {
+test("복사·공유 흐름 B: 같은 팝업에서 공유, URL 없음", async ({ page }) => {
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await installShareMocks(page);
   await login(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "오늘의 기도 결과 공유하기" }).click();
-  const dialog = page.getByRole("dialog", { name: "공유할 내용" });
+  await page.getByRole("button", { name: "오늘의 기도 복사 또는 공유" }).click();
+  const dialog = page.getByRole("dialog", { name: "오늘의 기록" });
   await expect(dialog).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(1);
   await dialog.getByLabel("편집할 문구").fill("오늘 16회 기도했습니다.");
@@ -180,24 +180,20 @@ test("공유하기 흐름 B: 제목, 편집, 공유, URL 없음", async ({ page 
   expect(payload.url).toBeUndefined();
 });
 
-test("연속 실행 흐름 C: copy 닫기 후 share, 다시 copy", async ({ page }) => {
+test("연속 실행 흐름 C: 같은 팝업에서 복사와 공유", async ({ page }) => {
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await login(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "오늘의 기도 결과 복사" }).click();
-  await expect(page.getByRole("dialog", { name: "복사할 내용" })).toBeVisible();
-  await page.getByRole("dialog").getByRole("button", { name: "취소" }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "오늘의 기도 결과 공유하기" }).click();
-  const shareDialog = page.getByRole("dialog", { name: "공유할 내용" });
-  await expect(shareDialog).toBeVisible();
+  await page.getByRole("button", { name: "오늘의 기도 복사 또는 공유" }).click();
+  const dialog = page.getByRole("dialog", { name: "오늘의 기록" });
+  await expect(dialog).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(1);
-  await expect(shareDialog.getByText("현재 주요 동작은 공유입니다.")).toBeVisible();
-  await shareDialog.getByRole("button", { name: "취소" }).click();
-  await page.getByRole("button", { name: "오늘의 기도 결과 복사" }).click();
-  const copyDialog = page.getByRole("dialog", { name: "복사할 내용" });
-  await expect(copyDialog).toBeVisible();
-  await expect(copyDialog.getByText("현재 주요 동작은 복사입니다.")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "복사" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "공유" })).toBeVisible();
+  await dialog.getByRole("button", { name: "취소" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "오늘의 기도 복사 또는 공유" }).click();
+  await expect(page.getByRole("dialog", { name: "오늘의 기록" })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(1);
 });
 
@@ -205,8 +201,8 @@ test("항목 선택 흐름 D: 선택 해제와 편집값 보호", async ({ page 
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await login(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "오늘의 기도 결과 복사" }).click();
-  const dialog = page.getByRole("dialog", { name: "복사할 내용" });
+  await page.getByRole("button", { name: "오늘의 기도 복사 또는 공유" }).click();
+  const dialog = page.getByRole("dialog", { name: "오늘의 기록" });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("오늘 기도 횟수").uncheck();
   const editor = dialog.getByLabel("편집할 문구");

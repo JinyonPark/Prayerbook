@@ -46,7 +46,7 @@ async function AppDataProviders({ children }: { children: React.ReactNode }) {
     })),
     supabase
       .from("user_preferences")
-      .select("theme, font_size, line_height, spouse_prayer_selection, auto_scroll_speed, auto_scroll_enabled, conceived_show_all_names, time_zone")
+      .select("theme, font_size, line_height, spouse_prayer_selection, auto_scroll_speed, auto_scroll_enabled, conceived_show_all_names, time_zone, share_selected_fields, share_custom_template")
       .eq("user_id", user.id)
       .maybeSingle(),
     supabase
@@ -73,6 +73,8 @@ async function AppDataProviders({ children }: { children: React.ReactNode }) {
     auto_scroll_enabled?: boolean;
     conceived_show_all_names?: boolean;
     time_zone?: string;
+    share_selected_fields?: UserPreferences["share_selected_fields"];
+    share_custom_template?: string | null;
   }) | null;
   const timeZone = normalizeTimeZone(prefs?.time_zone ?? DEFAULT_TIME_ZONE);
 

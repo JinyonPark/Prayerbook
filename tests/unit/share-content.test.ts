@@ -8,10 +8,11 @@ import {
   formatShareRecordText,
   hasAnyShareField,
   keepEditedShareText,
+  parseShareFormat,
   rebuildShareTextFromSelection,
+  refreshShareTemplate,
   shareActionBlockReason,
-  shareDialogTitle,
-  sharePrimaryAction,
+  shareFormatFromState,
   shareTextLooksLikeDefaultTemplate,
   type ShareRecordInput,
 } from "@/lib/progress/share-content";
@@ -100,7 +101,7 @@ describe("기본 공유 문구", () => {
   it("선택 순서와 관계없이 문장 순서는 고정된다", () => {
     const toggledProgressFirst = applyShareFieldToggle(
       applyShareFieldToggle(
-        createShareDialogState("copy", sample),
+        createShareDialogState(sample),
         "today",
         sample,
       ),
@@ -141,29 +142,64 @@ describe("기본 공유 문구", () => {
   });
 });
 
-describe("팝업 모드", () => {
-  it("copy 모드 제목과 주요 버튼이 복사다", () => {
-    expect(shareDialogTitle("copy")).toBe("복사할 내용");
-    expect(sharePrimaryAction("copy")).toBe("copy");
+describe("복사·공유 형식 저장", () => {
+  it("저장한 선택 항목으로 다음 문구를 만든다", () => {
+    const saved = parseShareFormat({
+      share_selected_fields: { today: true, lifetime: false, total: true, progress: false },
+      share_custom_template: null,
+    });
+    const state = createShareDialogState(sample, saved);
+    expect(state.selected).toEqual({ today: true, lifetime: false, total: true, progress: false });
+    expect(state.editedText).toBe(`기도훈련집 오늘의 기록\n\n2026년 9월 8일\n오늘 총 16회 기도했습니다.\nTotal 3독 완료`);
+    expect(state.isDirty).toBe(false);
   });
 
-  it("share 모드 제목과 주요 버튼이 공유다", () => {
-    expect(shareDialogTitle("share")).toBe("공유할 내용");
-    expect(sharePrimaryAction("share")).toBe("share");
+  it("저장한 편집 문구는 날짜와 숫자만 오늘 값으로 바꾸고 나머지 형식은 유지한다", () => {
+    const saved = parseShareFormat({
+      share_selected_fields: { today: true, lifetime: true, total: true, progress: true },
+      share_custom_template: [
+        "오늘도 기도할 수 있어 감사합니다.",
+        "",
+        "기도훈련집 오늘의 기록",
+        "",
+        "2026년 9월 7일",
+        "오늘 총 10회 기도했습니다.",
+        "지금까지 총 70회 기도했습니다.",
+        "Total 3독 완료",
+        "4독 진행 중 1 / 26",
+      ].join("\n"),
+    });
+    const nextDay = { ...sample, localDate: "2026-09-09", todayCount: 20, lifetimeCount: 90 };
+    const text = refreshShareTemplate(saved.customTemplate ?? "", nextDay, saved.selected);
+    expect(text).toBe(
+      [
+        "오늘도 기도할 수 있어 감사합니다.",
+        "",
+        "기도훈련집 오늘의 기록",
+        "",
+        "2026년 9월 9일",
+        "오늘 총 20회 기도했습니다.",
+        "지금까지 총 90회 기도했습니다.",
+        "Total 3독 완료",
+        "4독 진행 중 1 / 26",
+      ].join("\n"),
+    );
+    const restored = createShareDialogState(nextDay, saved);
+    expect(restored.editedText).toBe(text);
+    expect(restored.isDirty).toBe(true);
   });
 
-  it("닫은 뒤 다른 모드로 열면 이전 mode가 남지 않는다", () => {
-    const copy = createShareDialogState("copy", sample);
-    expect(copy.mode).toBe("copy");
-    const share = createShareDialogState("share", sample);
-    expect(share.mode).toBe("share");
-    expect(share.mode).not.toBe(copy.mode);
+  it("기본 문구를 쓰면 다음에도 기본 형식으로 연다", () => {
+    let state = createShareDialogState(sample);
+    expect(shareFormatFromState(state)?.customTemplate).toBeNull();
+    state = editShareText(state, "직접 작성한 문구");
+    expect(shareFormatFromState(state)?.customTemplate).toBe("직접 작성한 문구");
   });
 });
 
-describe("편집값 보호", () => {
+describe("복사·공유 공통 팝업", () => {
   it("복사와 공유가 같은 editedText를 사용한다", () => {
-    let state = createShareDialogState("copy", sample);
+    let state = createShareDialogState(sample);
     state = editShareText(state, "오늘도 기도할 수 있어 감사합니다.");
     expect(state.editedText).toBe("오늘도 기도할 수 있어 감사합니다.");
     expect(state.generatedText).toBe(formatShareRecordText(sample, DEFAULT_SHARE_SELECTION));
@@ -172,7 +208,7 @@ describe("편집값 보호", () => {
   });
 
   it("사용자 편집 후 선택 변경은 편집값을 즉시 덮어쓰지 않는다", () => {
-    let state = createShareDialogState("share", sample);
+    let state = createShareDialogState(sample);
     state = editShareText(state, "직접 작성한 문구");
     state = applyShareFieldToggle(state, "today", sample);
     expect(state.editedText).toBe("직접 작성한 문구");
@@ -182,7 +218,7 @@ describe("편집값 보호", () => {
   });
 
   it("선택 항목으로 다시 만들기와 기본 문구로 되돌리기가 동작한다", () => {
-    let state = createShareDialogState("copy", sample);
+    let state = createShareDialogState(sample);
     state = editShareText(state, "직접 작성한 문구");
     state = applyShareFieldToggle(state, "today", sample);
     state = rebuildShareTextFromSelection(state, sample);

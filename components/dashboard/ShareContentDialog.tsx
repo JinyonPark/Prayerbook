@@ -3,12 +3,15 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { useAppState } from "@/components/providers/AppProviders";
 import { copyTextToClipboard, shareOrCopyText } from "@/lib/progress/clipboard";
 import { shareRecordInputFromDaily, type DailyPrayerSummary, type DailyShareProgress } from "@/lib/progress/daily";
 import {
   COPY_FAILURE_MESSAGE,
   COPY_SUCCESS_MESSAGE,
   SHARE_COPY_FALLBACK_MESSAGE,
+  SHARE_DIALOG_DESCRIPTION,
+  SHARE_DIALOG_TITLE,
   SHARE_FIELD_IDS,
   SHARE_FIELD_LABELS,
   SHARE_FAILURE_MESSAGE,
@@ -24,9 +27,7 @@ import {
   refreshShareDialogStats,
   shareActionBlockMessage,
   shareActionBlockReason,
-  shareDialogDescription,
-  shareDialogTitle,
-  type ShareDialogMode,
+  shareFormatFromState,
   type ShareDialogState,
   type ShareFieldId,
 } from "@/lib/progress/share-content";
@@ -38,14 +39,12 @@ type Props = {
 };
 
 export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props) {
+  const { shareFormat, updateShareFormat } = useAppState();
   const descriptionId = useId();
   const editorId = useId();
   const liveId = useId();
-  const primaryHintId = useId();
-  const copyButtonRef = useRef<HTMLButtonElement>(null);
-  const shareButtonRef = useRef<HTMLButtonElement>(null);
-  const primaryActionRef = useRef<HTMLButtonElement>(null);
-  const opener = useRef<ShareDialogMode>("copy");
+  const openButtonRef = useRef<HTMLButtonElement>(null);
+  const copyActionRef = useRef<HTMLButtonElement>(null);
   const busy = useRef(false);
   const openRef = useRef(false);
   const input = useMemo(
@@ -53,7 +52,7 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
     [dailySummary, progress],
   );
   const [open, setOpen] = useState(false);
-  const [state, setState] = useState<ShareDialogState>(() => createShareDialogState("copy", input));
+  const [state, setState] = useState<ShareDialogState>(() => createShareDialogState(input, shareFormat));
   const [revertConfirm, setRevertConfirm] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeTone, setNoticeTone] = useState<"success" | "error">("success");
@@ -70,20 +69,26 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
     setNotice(message);
   }
 
-  function closeDialog() {
+  function persistFormat(next: ShareDialogState) {
+    const saved = shareFormatFromState(next);
+    if (!saved) return;
+    void updateShareFormat(saved);
+  }
+
+  function closeDialog(save: boolean) {
+    if (save) persistFormat(state);
     setOpen(false);
     setRevertConfirm(false);
     queueMicrotask(() => {
-      (opener.current === "share" ? shareButtonRef : copyButtonRef).current?.focus();
+      openButtonRef.current?.focus();
     });
   }
 
-  function openShareDialog(mode: ShareDialogMode) {
-    if (openRef.current && state.mode === mode) return;
-    opener.current = mode;
+  function openDialog() {
+    if (openRef.current) return;
     setNotice(null);
     setRevertConfirm(false);
-    setState(createShareDialogState(mode, input));
+    setState(createShareDialogState(input, shareFormat));
     setOpen(true);
     void onRefresh();
   }
@@ -99,6 +104,7 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
     try {
       const ok = await copyTextToClipboard(state.editedText);
       showNotice(ok ? COPY_SUCCESS_MESSAGE : COPY_FAILURE_MESSAGE, ok ? "success" : "error");
+      if (ok) persistFormat(state);
     } finally {
       busy.current = false;
     }
@@ -118,8 +124,9 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
         text: state.editedText,
       });
       if (result === "cancelled") return;
+      persistFormat(state);
       if (result === "shared") {
-        closeDialog();
+        closeDialog(false);
         return;
       }
       if (result === "copied") {
@@ -139,61 +146,20 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
     setRevertConfirm(false);
   }
 
-  const title = shareDialogTitle(state.mode);
-  const description = shareDialogDescription(state.mode);
-  const copyIsPrimary = state.mode === "copy";
   const blockReason = shareActionBlockReason(state.selected, state.editedText);
   const blockMessage = shareActionBlockMessage(blockReason);
-  const copyButton = (
-    <Button
-      ref={copyIsPrimary ? primaryActionRef : undefined}
-      type="button"
-      variant={copyIsPrimary ? "primary" : "secondary"}
-      className="min-h-11 w-full min-[400px]:flex-1"
-      data-initial-focus={copyIsPrimary ? "true" : undefined}
-      aria-describedby={copyIsPrimary ? primaryHintId : undefined}
-      onClick={() => void onCopy()}
-    >
-      복사
-    </Button>
-  );
-  const shareButton = (
-    <Button
-      ref={copyIsPrimary ? undefined : primaryActionRef}
-      type="button"
-      variant={copyIsPrimary ? "secondary" : "primary"}
-      className="min-h-11 w-full min-[400px]:flex-1"
-      data-initial-focus={copyIsPrimary ? undefined : "true"}
-      aria-describedby={copyIsPrimary ? undefined : primaryHintId}
-      onClick={() => void onShare()}
-    >
-      공유
-    </Button>
-  );
 
   return (
     <div className="mt-4">
-      <div className="flex flex-col gap-2 min-[360px]:flex-row">
-        <Button
-          ref={copyButtonRef}
-          type="button"
-          className="w-full min-[360px]:flex-1"
-          aria-label="오늘의 기도 결과 복사"
-          onClick={() => openShareDialog("copy")}
-        >
-          결과 복사
-        </Button>
-        <Button
-          ref={shareButtonRef}
-          type="button"
-          variant="secondary"
-          className="w-full min-[360px]:flex-1"
-          aria-label="오늘의 기도 결과 공유하기"
-          onClick={() => openShareDialog("share")}
-        >
-          공유하기
-        </Button>
-      </div>
+      <Button
+        ref={openButtonRef}
+        type="button"
+        className="w-full"
+        aria-label="오늘의 기도 복사 또는 공유"
+        onClick={openDialog}
+      >
+        복사·공유
+      </Button>
       <p
         className={`mt-2 min-h-6 whitespace-pre-line text-sm ${noticeTone === "error" ? "text-[var(--danger)]" : "text-[var(--success)]"}`}
         role="status"
@@ -204,27 +170,34 @@ export function ShareContentDialog({ dailySummary, progress, onRefresh }: Props)
       </p>
       <Modal
         open={open}
-        title={title}
+        title={SHARE_DIALOG_TITLE}
         descriptionId={descriptionId}
-        initialFocusRef={primaryActionRef}
-        onClose={closeDialog}
+        initialFocusRef={copyActionRef}
+        onClose={() => closeDialog(true)}
         footer={
           <div className="flex flex-col gap-2 min-[400px]:flex-row">
             <div className="flex gap-2 min-[400px]:contents">
-              <Button type="button" variant="ghost" className="min-h-11 flex-1" onClick={closeDialog}>
+              <Button type="button" variant="ghost" className="min-h-11 flex-1" onClick={() => closeDialog(false)}>
                 취소
               </Button>
-              {copyIsPrimary ? shareButton : copyButton}
+              <Button type="button" variant="secondary" className="min-h-11 w-full min-[400px]:flex-1" onClick={() => void onShare()}>
+                공유
+              </Button>
             </div>
-            {copyIsPrimary ? copyButton : shareButton}
+            <Button
+              ref={copyActionRef}
+              type="button"
+              className="min-h-11 w-full min-[400px]:flex-1"
+              data-initial-focus="true"
+              onClick={() => void onCopy()}
+            >
+              복사
+            </Button>
           </div>
         }
       >
         <p id={descriptionId} className="text-sm text-[var(--muted)]">
-          {description}
-        </p>
-        <p id={primaryHintId} className="mt-1 text-sm text-[var(--muted)]">
-          {copyIsPrimary ? "현재 주요 동작은 복사입니다." : "현재 주요 동작은 공유입니다."}
+          {SHARE_DIALOG_DESCRIPTION}
         </p>
         <fieldset className="mt-4">
           <legend className="font-medium">공유할 기록 선택</legend>
