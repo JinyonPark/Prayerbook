@@ -2,11 +2,12 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { fetchDailyPrayerSummary, fetchProgressSummary, rpcSavePrayerInputs } from "@/lib/supabase/rpc";
+import { fetchDailyPrayerSummary, fetchProgressSummary } from "@/lib/supabase/rpc";
 import type { RpcProgressSummary } from "@/lib/progress/types";
 import type { ReadingState, UserPreferences } from "@/lib/progress/types";
 import { personalizationRowsFromInputs, type PersonalizationRow } from "@/lib/prayers/personalize";
 import type { PrayerInputRow, PrayerInputValues } from "@/lib/prayers/inputs";
+import { savePrayerInputsRequest } from "@/lib/prayers/inputs-request";
 import { parseAutoScrollSpeed } from "@/lib/prayers/inputs";
 import { parseSpousePrayerSelection, readCachedSpouseSelection, writeCachedSpouseSelection, type SpousePrayerSelection } from "@/lib/progress/spouse";
 import {
@@ -320,7 +321,7 @@ export function AppProviders({
     if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
     try {
-      const saved = await rpcSavePrayerInputs(supabase, prayerItemId, values);
+      const saved = await savePrayerInputsRequest(supabase, prayerItemId, values);
       const nextRows = [
         ...prayerInputs.filter((row) => row.prayer_item_id !== prayerItemId),
         { prayer_item_id: saved.prayer_item_id, values: saved.values as PrayerInputValues },

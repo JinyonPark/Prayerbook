@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { useAppState } from "@/components/providers/AppProviders";
 import { toUserMessage } from "@/lib/errors/user-message";
@@ -91,6 +91,11 @@ function PrayerEditor({
   const atNameLimit = Boolean(prayer.maxNames && names.length >= prayer.maxNames);
   const intercessionValue = intercessionDraft ?? intercession;
   const parsedNames = prayer.slug === "children" ? parseNameList(nameDraft) : names;
+  const namesKey = names.join("\n");
+
+  useEffect(() => {
+    setNameDraft(namesKey);
+  }, [namesKey]);
 
   return (
     <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">

@@ -75,3 +75,13 @@ export function nextReaderChromeVisible(options: {
   if (options.deltaY < -showDelta) return true;
   return options.current;
 }
+
+export function chromeVisibleFromFingerMove(
+  fingerDeltaY: number,
+  current: boolean,
+  threshold = 8,
+): boolean {
+  if (fingerDeltaY > threshold) return true;
+  if (fingerDeltaY < -threshold) return false;
+  return current;
+}

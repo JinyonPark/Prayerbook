@@ -210,6 +210,13 @@ svg {
 }
 
 @media (max-width: 1023px) {
+  .reader-chrome {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+
   .reader-article {
     max-width: none;
   }

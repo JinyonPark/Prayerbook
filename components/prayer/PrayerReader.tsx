@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Drawer } from "@/components/ui/Drawer";
 import { Modal } from "@/components/ui/Modal";
@@ -31,6 +31,7 @@ import {
   isManualScrollKey,
   nextAutoScrollPosition,
   nextReaderChromeVisible,
+  chromeVisibleFromFingerMove,
   shouldStartAutoScroll,
 } from "@/lib/prayers/auto-scroll";
 
@@ -64,8 +65,13 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const [inputEditorOpen, setInputEditorOpen] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(true);
+  const [chromeHeight, setChromeHeight] = useState(44);
   const restored = useRef(false);
   const lastChromeYRef = useRef(0);
+  const chromeRef = useRef<HTMLDivElement>(null);
+  const touchingChromeRef = useRef(false);
+  const lastTouchYRef = useRef(0);
+  const chromeVisibleRef = useRef(true);
   const autoEnteredAtRef = useRef(0);
   const lastOpenedAtRef = useRef(reading?.last_opened_at ?? null);
   const lastReadingRef = useRef(reading);
@@ -179,6 +185,8 @@ export function PrayerReader({ prayer, prayers }: Props) {
     setAutoRunning(false);
     void persistReadingRef.current();
   }, []);
+  const cancelAutoStartRef = useRef(cancelAutoStart);
+  cancelAutoStartRef.current = cancelAutoStart;
 
   useEffect(() => {
     restored.current = false;
@@ -289,16 +297,73 @@ export function PrayerReader({ prayer, prayers }: Props) {
 
   useEffect(() => {
     lastChromeYRef.current = window.scrollY;
-    setChromeVisible(window.scrollY <= 12);
+    chromeVisibleRef.current = window.scrollY <= 12;
+    setChromeVisible(chromeVisibleRef.current);
+
+    function applyChrome(next: boolean, cancelAuto: boolean) {
+      if (chromeVisibleRef.current !== next) {
+        chromeVisibleRef.current = next;
+        setChromeVisible(next);
+      }
+      if (cancelAuto && next && autoRunningRef.current) cancelAutoStartRef.current();
+    }
+
+    function onTouchStart(event: TouchEvent) {
+      touchingChromeRef.current = true;
+      lastTouchYRef.current = event.touches[0]?.clientY ?? 0;
+    }
+    function onTouchMove(event: TouchEvent) {
+      const y = event.touches[0]?.clientY ?? lastTouchYRef.current;
+      const fingerDelta = y - lastTouchYRef.current;
+      lastTouchYRef.current = y;
+      const next = chromeVisibleFromFingerMove(fingerDelta, chromeVisibleRef.current);
+      applyChrome(next, next);
+    }
+    function onTouchEnd() {
+      touchingChromeRef.current = false;
+    }
+    function onWheel(event: WheelEvent) {
+      if (event.deltaY < -4) applyChrome(true, true);
+      else if (event.deltaY > 4) applyChrome(false, false);
+    }
     function onChromeScroll() {
-      const y = window.scrollY;
+      const y = window.scrollY || document.documentElement.scrollTop || 0;
       const deltaY = y - lastChromeYRef.current;
       lastChromeYRef.current = y;
-      setChromeVisible((current) => nextReaderChromeVisible({ current, scrollY: y, deltaY }));
+      if (touchingChromeRef.current) return;
+      applyChrome(nextReaderChromeVisible({ current: chromeVisibleRef.current, scrollY: y, deltaY }), false);
     }
+
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    window.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("scroll", onChromeScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onChromeScroll);
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("scroll", onChromeScroll);
+    };
   }, [prayer.id]);
+
+  useLayoutEffect(() => {
+    function measure() {
+      const node = chromeRef.current;
+      if (!node) return;
+      const next = Math.ceil(node.getBoundingClientRect().height);
+      if (next > 0) setChromeHeight(next);
+    }
+    measure();
+    const node = chromeRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [numberedTitle]);
 
   useEffect(() => {
     if (prefs.autoScrollEnabled) setReachedEnd(false);
@@ -530,8 +595,9 @@ export function PrayerReader({ prayer, prayers }: Props) {
       <aside className="reader-side rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">{toc}</aside>
       <div>
         <div
-          className={`reader-chrome sticky top-0 z-[200] border-b border-[var(--border)] bg-[var(--bg)] transition-transform duration-200 ease-out lg:top-[var(--header-h)] lg:-mx-5 lg:mb-4 lg:px-5 ${
-            chromeVisible ? "translate-y-0" : "pointer-events-none -translate-y-full lg:pointer-events-auto lg:translate-y-0"
+          ref={chromeRef}
+          className={`reader-chrome z-[200] border-b border-[var(--border)] bg-[var(--bg)] transition-transform duration-200 ease-out lg:sticky lg:top-[var(--header-h)] lg:-mx-5 lg:mb-4 lg:px-5 ${
+            chromeVisible ? "translate-y-0" : "pointer-events-none max-lg:-translate-y-full"
           }`}
         >
           <div className="mx-auto flex max-w-[760px] items-start gap-1 px-3 py-1 lg:px-0 lg:py-2">
@@ -570,6 +636,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
             </div>
           </div>
         </div>
+        <div className="reader-chrome-spacer lg:hidden" style={{ height: chromeHeight }} aria-hidden />
 
         {["heal-sickness", "hope-prayer", "conceived-prayer"].includes(prayer.slug) ? (
         <div className="mx-auto max-w-[760px] space-y-3 px-3 pt-3 lg:px-0">

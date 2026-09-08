@@ -23,4 +23,16 @@ describe("완료 API와 서버 점검", () => {
     expect(source).toContain("prayer_items?select=id&limit=1");
     expect(source).toContain("missing-env");
   });
+
+  it("이름·중보기도 저장은 서버 세션 API를 쓴다", () => {
+    const source = readFileSync(path.join(process.cwd(), "app/api/prayer-inputs/route.ts"), "utf8");
+    expect(source).toContain("rpcSavePrayerInputs");
+    expect(source).toContain("createServerSupabaseClient");
+  });
+
+  it("이름·중보기도 클라이언트는 같은 출처 API를 쓴다", () => {
+    const source = readFileSync(path.join(process.cwd(), "lib/prayers/inputs-request.ts"), "utf8");
+    expect(source).toContain("/api/prayer-inputs");
+    expect(source).toContain("rpcSavePrayerInputs");
+  });
 });

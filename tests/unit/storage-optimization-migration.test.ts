@@ -68,3 +68,12 @@ describe("횟수 수정 RPC 열 이름 충돌", () => {
     expect(sql).not.toMatch(/delete from auth\.users/i);
   });
 });
+
+describe("이름·중보기도 저장 RPC 열 이름 충돌", () => {
+  it("save_prayer_inputs는 입력 테이블 열을 별칭으로 구분한다", () => {
+    const sql = readMigration("20240909000018_fix_save_prayer_inputs_ambiguous.sql");
+    expect(sql).toContain("inp.prayer_item_id = v_prayer_item_id");
+    expect(sql).toContain("#variable_conflict use_column");
+    expect(sql).not.toMatch(/delete from auth\.users/i);
+  });
+});

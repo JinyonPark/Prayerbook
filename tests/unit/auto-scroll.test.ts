@@ -7,6 +7,7 @@ import {
   shouldIgnoreAutoScrollCancel,
   shouldStartAutoScroll,
   nextReaderChromeVisible,
+  chromeVisibleFromFingerMove,
 } from "@/lib/prayers/auto-scroll";
 import { defaultPreferences, parseAutoScrollEnabled } from "@/lib/theme/preferences";
 
@@ -65,6 +66,8 @@ describe("자동 스크롤", () => {
     expect(nextReaderChromeVisible({ current: false, scrollY: 40, deltaY: -20 })).toBe(true);
     expect(nextReaderChromeVisible({ current: false, scrollY: 4, deltaY: 20 })).toBe(true);
     expect(nextReaderChromeVisible({ current: false, scrollY: 80, deltaY: 1 })).toBe(false);
+    expect(chromeVisibleFromFingerMove(20, false)).toBe(true);
+    expect(chromeVisibleFromFingerMove(-20, true)).toBe(false);
   });
 
   it("위치 복원 전이나 수동 스크롤이면 시작하지 않는다", () => {
