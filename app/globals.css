@@ -99,7 +99,7 @@ body::before {
   right: 0;
   height: var(--safe-top);
   background: var(--status-bar);
-  z-index: 90;
+  z-index: 20;
   pointer-events: none;
 }
 
@@ -193,12 +193,12 @@ svg {
 }
 
 .reader-chrome {
-  min-height: 3.25rem;
-  z-index: 40;
+  min-height: 2.75rem;
+  z-index: 100;
 }
 
 .reader-chrome-spacer {
-  height: calc(3.25rem + var(--safe-top));
+  height: 2.75rem;
 }
 
 @media (max-width: 1023px) {

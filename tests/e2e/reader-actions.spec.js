@@ -73,6 +73,21 @@ test("자녀 기도 본문에는 이름 편집 버튼이 없다", async ({ page 
   await expect(page.getByText("설정에서만 수정할 수 있습니다")).toBeVisible();
 });
 
+test("상단 뒤로·홈과 목차 항목이 실제 링크로 이동한다", async ({ page }) => {
+  test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await page.goto("/prayers/dawn");
+  await expect(page.getByRole("article")).toBeVisible();
+  await topHitIsButton(page, page.getByRole("link", { name: "뒤로" }));
+  await topHitIsButton(page, page.getByRole("link", { name: "홈" }));
+  await page.getByRole("button", { name: "목차" }).click();
+  await expect(page.getByRole("dialog", { name: "목차" })).toBeVisible();
+  await page.getByRole("dialog", { name: "목차" }).getByRole("link").nth(1).click();
+  await expect(page).not.toHaveURL(/\/prayers\/dawn\/?$/, { timeout: 15000 });
+  await expect(page).toHaveURL(/\/prayers\/[^/]+/, { timeout: 15000 });
+});
+
 test("하단 목차 이동은 목차 시트를 연다", async ({ page }) => {
   test.skip(!hasCreds, "E2E_TEST_USER_EMAIL / E2E_TEST_USER_PASSWORD 없음");
   await page.setViewportSize({ width: 390, height: 844 });

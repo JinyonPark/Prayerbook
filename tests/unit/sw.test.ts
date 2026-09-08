@@ -6,7 +6,7 @@ describe("service worker", () => {
   const sw = readFileSync(path.join(process.cwd(), "public/sw.js"), "utf8");
 
   it("Next 라우터 RSC 요청은 가로채지 않는다", () => {
-    expect(sw).toContain("prayer-book-v11");
+    expect(sw).toContain("prayer-book-v12");
     expect(sw).toContain("isNextRouterRequest");
     expect(sw).toContain('searchParams.has("_rsc")');
     expect(sw).toContain('headers.has("RSC")');
@@ -22,5 +22,11 @@ describe("상태 표시줄 여백", () => {
   it("모바일에서 48px 녹색 여백을 강제하지 않는다", () => {
     expect(css).toContain("--safe-top-env");
     expect(css).not.toContain("max(var(--safe-top-env), 48px)");
+  });
+
+  it("기도문 상단 메뉴는 상태 표시줄 위에 두고 이중 여백을 넣지 않는다", () => {
+    expect(css).toContain(".reader-chrome");
+    expect(css).toContain("z-index: 100");
+    expect(css).not.toContain("height: calc(3.25rem + var(--safe-top))");
   });
 });

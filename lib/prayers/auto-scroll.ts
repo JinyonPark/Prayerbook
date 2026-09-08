@@ -19,6 +19,23 @@ export function isManualScrollKey(key: string): boolean {
 }
 
 export const AUTO_SCROLL_START_DELAY_MS = 1000;
+export const AUTO_SCROLL_NAV_GESTURE_GUARD_MS = 450;
+
+export function remainingAutoScrollDelay(
+  startedAtMs: number,
+  nowMs: number,
+  delayMs = AUTO_SCROLL_START_DELAY_MS,
+): number {
+  return Math.max(0, delayMs - Math.max(0, nowMs - startedAtMs));
+}
+
+export function shouldIgnoreAutoScrollCancel(
+  startedAtMs: number,
+  nowMs: number,
+  guardMs = AUTO_SCROLL_NAV_GESTURE_GUARD_MS,
+): boolean {
+  return nowMs - startedAtMs < guardMs;
+}
 
 export function shouldStartAutoScroll(options: {
   enabled: boolean;

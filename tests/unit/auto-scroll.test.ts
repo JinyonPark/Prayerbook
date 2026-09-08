@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { nextAutoScrollPosition, isManualScrollKey, hasAutoScrollDelayElapsed, shouldStartAutoScroll } from "@/lib/prayers/auto-scroll";
+import {
+  nextAutoScrollPosition,
+  isManualScrollKey,
+  hasAutoScrollDelayElapsed,
+  remainingAutoScrollDelay,
+  shouldIgnoreAutoScrollCancel,
+  shouldStartAutoScroll,
+} from "@/lib/prayers/auto-scroll";
 import { defaultPreferences, parseAutoScrollEnabled } from "@/lib/theme/preferences";
 
 describe("자동 스크롤", () => {
@@ -45,6 +52,11 @@ describe("자동 스크롤", () => {
   it("1초가 지나기 전에는 시작하지 않는다", () => {
     expect(hasAutoScrollDelayElapsed(999)).toBe(false);
     expect(hasAutoScrollDelayElapsed(1000)).toBe(true);
+    expect(remainingAutoScrollDelay(0, 0)).toBe(1000);
+    expect(remainingAutoScrollDelay(0, 400)).toBe(600);
+    expect(remainingAutoScrollDelay(0, 1000)).toBe(0);
+    expect(shouldIgnoreAutoScrollCancel(0, 200)).toBe(true);
+    expect(shouldIgnoreAutoScrollCancel(0, 500)).toBe(false);
   });
 
   it("위치 복원 전이나 수동 스크롤이면 시작하지 않는다", () => {

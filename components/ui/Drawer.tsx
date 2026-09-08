@@ -55,7 +55,7 @@ export function Drawer({ open, title, onClose, children }: Props) {
 
   return (
     <div
-      className="fixed z-[80] flex flex-col lg:hidden"
+      className="fixed z-[110] lg:hidden"
       style={{
         top: "var(--visual-viewport-top, 0px)",
         height: "var(--visual-viewport-height, 100dvh)",
@@ -66,14 +66,16 @@ export function Drawer({ open, title, onClose, children }: Props) {
       <button
         type="button"
         aria-label="목차 닫기"
-        className="min-h-0 flex-1 bg-[var(--overlay)]"
+        className="absolute inset-0 bg-[var(--overlay)]"
         onClick={() => onCloseRef.current()}
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
-        className="relative z-10 flex w-full flex-col rounded-t-2xl bg-[var(--card)]"
+        className="absolute inset-x-0 bottom-0 z-10 flex w-full flex-col rounded-t-2xl bg-[var(--card)]"
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
       >
         <div ref={headerRef} className="shrink-0 pt-3">
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[var(--border)]" />
