@@ -1,3 +1,5 @@
+import { historyCodeFor } from "@/lib/prayers/history-code";
+
 export type PrayerItemRecord = {
   id: string;
   item_number: number | null;
@@ -10,6 +12,7 @@ export type PrayerItemRecord = {
   source_url: string;
   content_version: number;
   is_active: boolean;
+  history_code: string;
 };
 
 export type PrayerFrontmatter = {
@@ -58,7 +61,7 @@ export function toPrayerItem(data: Record<string, string>, content: string): Pra
     throw new Error(`잘못된 category: ${data.slug ?? ""}`);
   }
 
-  return {
+  const item: Omit<PrayerItemRecord, "history_code"> = {
     id: required(data, "id"),
     item_number: data.item_number === "" || data.item_number === "null" ? null : Number(data.item_number),
     slug: required(data, "slug"),
@@ -70,6 +73,10 @@ export function toPrayerItem(data: Record<string, string>, content: string): Pra
     source_url: required(data, "source_url"),
     content_version: Number(data.content_version ?? "1"),
     is_active: (data.is_active ?? "true") !== "false",
+  };
+  return {
+    ...item,
+    history_code: data.history_code || historyCodeFor(item),
   };
 }
 

@@ -29,6 +29,7 @@ export type RpcProgressSummary = {
 
 export type CompletePrayerResult = {
   prayer_item_id?: string;
+  history_code?: string;
   completion_count?: number;
   previous_count?: number;
   previous_total: number;

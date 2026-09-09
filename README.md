@@ -11,7 +11,7 @@
 - 마지막 읽은 항목과 스크롤 비율 저장, 이어 기도하기
 - 주간/야간 모드, 글자 크기, 줄 간격
 - 항목별 횟수 수정/초기화, 현재 독수 초기화, 기본 기도 전체 초기화, 모든 기록 초기화, 일괄 설정
-- 변경 이력
+- 날짜별·월별 기도 이력(기기 로컬 숨김)
 - 설치 가능한 PWA, 기기별 설치 안내
 - 오프라인에서 캐시된 기도문 읽기(완료 저장은 온라인만)
 
@@ -96,7 +96,7 @@ npx supabase db push
 2. `supabase/migrations/20240904000002_rls.sql`
 3. `supabase/migrations/20240904000003_rpc_complete_and_edit.sql`
 4. `supabase/migrations/20240904000004_rpc_resets.sql`
-5. 이후 `supabase/migrations/`의 날짜순 파일 전부. 저장 구조 최적화는 `20240909000014`부터 `20240909000016`입니다.
+5. 이후 `supabase/migrations/`의 날짜순 파일 전부. 저장 구조 최적화는 `20240909000014`부터 `20240909000016`입니다. 날짜별·월별 이력은 `20240909000024_history_code_monthly.sql`입니다.
 
 ## seed 적용
 
@@ -219,18 +219,31 @@ npm run generate:icons
 ## 데이터베이스 구조
 
 - `profiles` 사용자 프로필
-- `prayer_items` 기도문 카탈로그
+- `prayer_items` 기도문 카탈로그. `history_code`는 이력 JSON 키용 짧은 코드이며 한 번 배정하면 바꾸지 않습니다
 - `user_prayer_progress` 항목별 완료 횟수. 행이 없으면 0회. 영구 보관
-- `user_daily_prayer_stats` 사용자당 하루 1행 기도 완료 집계. 최근 90일
-- `prayer_command_dedup` 요청 중복 방지. 최근 14일
+- `user_daily_prayer_stats` 사용자당 하루 1행 기도 완료 집계. 최근 30일 상세
+- `user_monthly_prayer_stats` 사용자당 월 1행 기도 완료 집계. 최근 12개월
+- `user_prayer_totals` 실제 완료 활동 누적. 사용자당 1행. 영구 보관
+- `prayer_command_dedup` 요청 중복 방지. 최근 48시간
 - `user_reading_state` 마지막 기도 항목과 `scroll_ratio`(0~1)
-- `user_preferences` 테마, 글자 크기, 줄 간격
-- `prayer_progress_operations` / `prayer_progress_operation_items` 횟수 수정·초기화 감사 이력. 최근 180일. 완료 버튼은 신규 저장하지 않음
+- `user_preferences` 테마, 글자 크기, 줄 간격, 시간대
+- `prayer_progress_operations` / `prayer_progress_operation_items` 횟수 수정·초기화 감사 이력. 최근 90일. 완료 버튼은 신규 저장하지 않음
 - `user_prayer_inputs` 이름·중보·소원 등 입력값. `save_prayer_inputs` RPC로만 저장
 
 완료 횟수 쓰기는 클라이언트 직접 update가 아니라 RPC만 사용합니다.
 
+이력 화면의 날짜 삭제와 전체 삭제는 이 기기 localStorage만 바꿉니다. Supabase 횟수와 Total은 그대로입니다.
+
 보관 기간 정리는 스케줄이 연결되어 있지 않습니다. 관리자가 필요할 때 서비스 롤로 실행합니다.
+
+용량 점검 SQL은 `supabase/diagnostics/history-storage.sql`입니다.
+
+운영 DB 용량 기준(사용자 화면에는 표시하지 않음):
+
+- 약 300MB: 사용량 점검
+- 약 350MB: 보관 정책과 DAU 재검토
+- 약 400MB: 즉시 정리 및 유료 플랜 검토
+- 무료 한도에 가까워질 때까지 정리를 미루지 않음
 
 ```bash
 npx tsx scripts/purge-prayer-storage.ts

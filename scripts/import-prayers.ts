@@ -4,6 +4,7 @@ import { PRAYER_CATALOG, SOURCE_ORIGIN, type PrayerCatalogEntry } from "../lib/p
 import { htmlToMarkdown } from "../lib/prayers/html-to-markdown";
 import { uuidFromSlug } from "../lib/prayers/ids";
 import { yamlQuote, type PrayerItemRecord } from "../lib/prayers/markdown";
+import { historyCodeFor } from "../lib/prayers/history-code";
 import { assertValidPrayers } from "../lib/prayers/validate";
 
 const ROOT = process.cwd();
@@ -33,6 +34,11 @@ async function main() {
       source_url: sourceUrl,
       content_version: 1,
       is_active: true,
+      history_code: historyCodeFor({
+        category: entry.category,
+        item_number: entry.itemNumber,
+        slug: entry.slug,
+      }),
     });
   }
 

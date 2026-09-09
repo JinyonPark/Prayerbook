@@ -25,6 +25,7 @@ import { isAuthFailure, logDevError } from "@/lib/errors/inspect";
 import { emptyDailySummary, type DailyPrayerSummary } from "@/lib/progress/daily";
 import { parseShareFormat, type ShareFormatPreference } from "@/lib/progress/share-content";
 import { detectBrowserTimeZone, msUntilNextMidnight, normalizeTimeZone } from "@/lib/progress/timezone";
+import { clearHistoryVisibilityOnLogoutMemoryOnly } from "@/lib/progress/history-visibility";
 import { perfMark } from "@/lib/perf/marks";
 
 type AppState = {
@@ -297,6 +298,9 @@ export function AppProviders({
     if (!hasPublicEnv()) return;
     const supabase = createBrowserSupabaseClient();
     const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        clearHistoryVisibilityOnLogoutMemoryOnly();
+      }
       if (event === "PASSWORD_RECOVERY" && window.location.pathname !== "/reset-password") {
         window.location.replace("/reset-password");
       }

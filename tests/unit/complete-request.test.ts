@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { toCompleteUserMessage, toUserMessage, NETWORK_USER_MESSAGE, AUTH_EXPIRED_USER_MESSAGE, COMPLETE_SAVE_FAILED_MESSAGE, SERVER_UNAVAILABLE_USER_MESSAGE } from "@/lib/errors/user-message";
 import { isNetworkFailure } from "@/lib/errors/inspect";
 import { completePrayerRequest, AuthExpiredError } from "@/lib/progress/complete-request";
@@ -33,6 +35,19 @@ describe("완료 오류 메시지", () => {
     expect(toCompleteUserMessage({ message: "SERVER_UNAVAILABLE", status: 503, code: "SERVER_UNAVAILABLE" })).toBe(
       SERVER_UNAVAILABLE_USER_MESSAGE,
     );
+  });
+});
+
+describe("완료 후 이력 재조회 없음", () => {
+  it("완료 요청과 홈 부트스트랩은 이력 RPC를 호출하지 않는다", () => {
+    const complete = readFileSync(path.join(process.cwd(), "lib/progress/complete-request.ts"), "utf8");
+    const bootstrap = readFileSync(path.join(process.cwd(), "lib/progress/bootstrap.ts"), "utf8");
+    const dashboard = readFileSync(path.join(process.cwd(), "components/dashboard/DashboardView.tsx"), "utf8");
+    for (const source of [complete, bootstrap, dashboard]) {
+      expect(source).not.toContain("get_recent_prayer_history");
+      expect(source).not.toContain("get_monthly_prayer_history");
+      expect(source).not.toContain("router.refresh");
+    }
   });
 });
 

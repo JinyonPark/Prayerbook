@@ -38,6 +38,7 @@ export function validatePrayerItems(items: PrayerItemRecord[]): PrayerValidation
   }
 
   const slugs = new Set<string>();
+  const codes = new Set<string>();
   for (const item of items) {
     if (!item.title.trim()) {
       issues.push({ level: "error", message: `제목이 비어 있습니다: ${item.slug}` });
@@ -49,6 +50,13 @@ export function validatePrayerItems(items: PrayerItemRecord[]): PrayerValidation
       issues.push({ level: "error", message: `slug가 중복되었습니다: ${item.slug}` });
     }
     slugs.add(item.slug);
+    if (!item.history_code || item.history_code.length > 20) {
+      issues.push({ level: "error", message: `history_code가 올바르지 않습니다: ${item.slug}` });
+    }
+    if (codes.has(item.history_code)) {
+      issues.push({ level: "error", message: `history_code가 중복되었습니다: ${item.history_code}` });
+    }
+    codes.add(item.history_code);
 
     if (item.category === "main" && item.counts_toward_total !== true) {
       issues.push({

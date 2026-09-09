@@ -1,4 +1,4 @@
-const VERSION = "prayer-book-v27";
+const VERSION = "prayer-book-v28";
 const SHELL = ["/", "/login", "/install", "/manifest.webmanifest", "/offline.html", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -46,6 +46,7 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/")) return;
   if (url.pathname.startsWith("/auth/")) return;
   if (url.pathname.startsWith("/prayers")) return;
+  if (url.pathname.startsWith("/history")) return;
   if (url.pathname.startsWith("/_next/")) return;
   if (url.pathname === "/sw.js") return;
 

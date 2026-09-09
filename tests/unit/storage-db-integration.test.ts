@@ -14,6 +14,8 @@ describe("DB 통합 테스트", () => {
       "20240909000016_inputs_login.sql",
       "20240909000020_lifetime_prayer_totals.sql",
       "20240909000021_share_format_preference.sql",
+      "20240909000023_complete_light_metrics.sql",
+      "20240909000024_history_code_monthly.sql",
     ];
     for (const file of files) {
       expect(existsSync(path.join(process.cwd(), "supabase/migrations", file))).toBe(true);

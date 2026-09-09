@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { InstallPromptProvider } from "@/components/pwa/InstallPromptProvider";
 import { AppStartMark } from "@/components/perf/AppStartMark";
 import { INSTALL_CAPTURE_SCRIPT } from "@/lib/pwa/detect";
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AppStartMark />
           {children}
         </InstallPromptProvider>
+        <Analytics />
       </body>
     </html>
   );
