@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { parseEmailInput } from "@/lib/auth/email";
+import { isUnconfirmedAuthError, rateLimitUserMessage } from "@/lib/auth/gotrue-error";
 import { parseAuthIdentifier } from "@/lib/auth/identifier";
-import { AUTH_MESSAGES } from "@/lib/auth/messages";
+import { AUTH_MESSAGES, MAIL_COOLDOWN_SECONDS } from "@/lib/auth/messages";
 import { MAX_PASSWORD_LENGTH, MIN_LOGIN_PASSWORD_LENGTH } from "@/lib/auth/password";
+import { isRateLimitFailure, parseAuthRetryAfterSeconds } from "@/lib/errors/inspect";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -57,12 +59,16 @@ export async function POST(request: Request) {
       password: parsedBody.data.password,
     });
     if (error) {
-      const message = error.message.toLowerCase();
-      if (message.includes("email not confirmed")) {
+      if (isUnconfirmedAuthError(error)) {
         return NextResponse.json({ error: AUTH_MESSAGES.unconfirmed, code: "unconfirmed" }, { status: 403 });
       }
-      if (message.includes("security purposes") || message.includes("rate")) {
-        return NextResponse.json({ error: AUTH_MESSAGES.rateLimit }, { status: 429 });
+      if (isRateLimitFailure(error)) {
+        const parsed = parseAuthRetryAfterSeconds(error);
+        const retryAfter = parsed ?? MAIL_COOLDOWN_SECONDS;
+        return NextResponse.json(
+          { error: rateLimitUserMessage(parsed), retryAfter, code: "rate_limit" },
+          { status: 429 },
+        );
       }
       return NextResponse.json({ error: AUTH_MESSAGES.loginFailed }, { status: 401 });
     }

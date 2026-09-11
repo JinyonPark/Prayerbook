@@ -19,27 +19,26 @@ test.describe("기도 이력", () => {
     await expect(page.getByText("저장 완료")).toBeVisible({ timeout: 20000 });
   }
 
-  test("홈에서는 이력 RPC를 호출하지 않고 이력 탭에서만 최근 30일을 조회한다", async ({ page }) => {
+  test("홈과 이력에서 서버 이력 RPC를 호출하지 않는다", async ({ page }) => {
     const historyCalls = [];
-    const monthlyCalls = [];
     page.on("request", (request) => {
       const url = request.url();
-      if (url.includes("get_recent_prayer_history")) historyCalls.push(url);
-      if (url.includes("get_monthly_prayer_history")) monthlyCalls.push(url);
+      if (
+        url.includes("get_recent_prayer_history") ||
+        url.includes("get_monthly_prayer_history") ||
+        url.includes("get_daily_prayer_summary")
+      ) {
+        historyCalls.push(url);
+      }
     });
     await login(page);
     await page.goto("/");
     await expect(page.getByRole("heading", { name: /Total/ })).toBeVisible();
     expect(historyCalls.length).toBe(0);
-    expect(monthlyCalls.length).toBe(0);
     await page.getByRole("navigation", { name: "주요 메뉴" }).getByRole("link", { name: "이력" }).click();
     await expect(page.getByRole("heading", { name: "기도 이력" }).first()).toBeVisible();
-    await expect(page.getByText(/기도 이력을 불러오는 중|최근 30일 동안 완료한 기도|총 \d+회/)).toBeVisible();
-    expect(historyCalls.length).toBe(1);
-    expect(monthlyCalls.length).toBe(0);
-    await page.getByRole("button", { name: "월별 요약" }).click();
-    await expect(page.getByText(/월별 기도 기록을 불러오는 중|표시할 월별 기도 기록|총 \d+회/)).toBeVisible();
-    expect(monthlyCalls.length).toBe(1);
+    await expect(page.getByText(/기도 이력을 불러오는 중|이 달에 완료한 기도|총 \d+회/)).toBeVisible();
+    expect(historyCalls.length).toBe(0);
   });
 
   test("기도 완료 후 오늘 이력에 제목과 횟수가 모인다", async ({ page }) => {

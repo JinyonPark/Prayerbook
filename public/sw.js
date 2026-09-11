@@ -1,4 +1,4 @@
-const VERSION = "prayer-book-v28";
+const VERSION = "prayer-book-v29";
 const SHELL = ["/", "/login", "/install", "/manifest.webmanifest", "/offline.html", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -15,6 +15,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) => Promise.all(keys.filter((key) => key !== VERSION).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
+  // Cache version changes must not delete IndexedDB local stats/history.
 });
 
 self.addEventListener("message", (event) => {

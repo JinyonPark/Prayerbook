@@ -1,30 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { rateLimitUserMessage } from "@/lib/auth/gotrue-error";
 import { parseEmailInput } from "@/lib/auth/email";
 import { isSyntheticAuthEmail } from "@/lib/auth/identifier";
-import { AUTH_MESSAGES, MAIL_COOLDOWN_COOKIE, MAIL_COOLDOWN_SECONDS } from "@/lib/auth/messages";
+import { applyMailCooldownCookie, hasMailCooldownCookie, jsonRateLimitResponse, signupRateLimitResponse } from "@/lib/auth/mail-cooldown";
+import { AUTH_MESSAGES, MAIL_COOLDOWN_SECONDS } from "@/lib/auth/messages";
 import { passwordResetCallbackUrl, siteUrlFromRequest } from "@/lib/auth/redirect";
+import { isRateLimitFailure, parseAuthRetryAfterSeconds } from "@/lib/errors/inspect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const bodySchema = z.object({
   email: z.string().min(1).max(254),
 });
-
-function cooldownResponse(message: string, status: number, remaining = MAIL_COOLDOWN_SECONDS) {
-  const response = NextResponse.json(
-    { ok: status < 400, error: status >= 400 ? message : undefined, message: status < 400 ? message : undefined },
-    { status },
-  );
-  if (status < 400) {
-    response.cookies.set(MAIL_COOLDOWN_COOKIE, "1", {
-      maxAge: remaining,
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-    });
-  }
-  return response;
-}
 
 export async function POST(request: Request) {
   const parsedBody = bodySchema.safeParse(await request.json().catch(() => null));
@@ -37,9 +24,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsedEmail.error }, { status: 400 });
   }
 
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  if (cookieHeader.split(";").some((part) => part.trim().startsWith(`${MAIL_COOLDOWN_COOKIE}=`))) {
-    return NextResponse.json({ error: AUTH_MESSAGES.rateLimit, retryAfter: MAIL_COOLDOWN_SECONDS }, { status: 429 });
+  if (hasMailCooldownCookie(request)) {
+    return jsonRateLimitResponse();
   }
 
   try {
@@ -48,15 +34,15 @@ export async function POST(request: Request) {
       const { error } = await supabase.auth.resetPasswordForEmail(parsedEmail.email, {
         redirectTo: passwordResetCallbackUrl(siteUrlFromRequest(request)),
       });
-      if (error) {
-        const message = error.message.toLowerCase();
-        if (message.includes("security purposes") || message.includes("rate")) {
-          return NextResponse.json({ error: AUTH_MESSAGES.rateLimit }, { status: 429 });
-        }
+      if (error && isRateLimitFailure(error)) {
+        const parsed = parseAuthRetryAfterSeconds(error);
+        const retryAfter = parsed ?? MAIL_COOLDOWN_SECONDS;
+        return signupRateLimitResponse(retryAfter, rateLimitUserMessage(parsed));
       }
     }
 
-    return cooldownResponse(AUTH_MESSAGES.resetSent, 200);
+    const response = NextResponse.json({ ok: true, message: AUTH_MESSAGES.resetSent });
+    return applyMailCooldownCookie(response);
   } catch {
     return NextResponse.json({ error: AUTH_MESSAGES.network }, { status: 503 });
   }

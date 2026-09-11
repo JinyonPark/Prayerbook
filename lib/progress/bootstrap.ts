@@ -5,7 +5,7 @@ import { emptyDailySummary, type DailyPrayerSummary } from "@/lib/progress/daily
 import { parseSpousePrayerSelection, type SpousePrayerSelection } from "@/lib/progress/spouse";
 import { DEFAULT_TIME_ZONE, normalizeTimeZone } from "@/lib/progress/timezone";
 import type { ReadingState, RpcProgressSummary, UserPreferences } from "@/lib/progress/types";
-import { fetchDailyPrayerSummary, fetchHomeDashboard, fetchProgressSummary } from "@/lib/supabase/rpc";
+import { fetchHomeDashboard, fetchProgressSummary } from "@/lib/supabase/rpc";
 import { perfMark } from "@/lib/perf/marks";
 
 const PREFS_SELECT =
@@ -30,20 +30,17 @@ async function loadHomeDashboard(supabase: SupabaseClient) {
   try {
     return await fetchHomeDashboard(supabase);
   } catch {
-    const [progress, daily] = await Promise.all([
-      fetchProgressSummary(supabase).catch(
-        (): RpcProgressSummary => ({
-          total_completed: 0,
-          current_round: 1,
-          current_completed_count: 0,
-          progress_percent: 0,
-          eligible_count: 0,
-          items: [],
-        }),
-      ),
-      fetchDailyPrayerSummary(supabase).catch(() => emptyDailySummary()),
-    ]);
-    return { progress, daily };
+    const progress = await fetchProgressSummary(supabase).catch(
+      (): RpcProgressSummary => ({
+        total_completed: 0,
+        current_round: 1,
+        current_completed_count: 0,
+        progress_percent: 0,
+        eligible_count: 0,
+        items: [],
+      }),
+    );
+    return { progress, daily: emptyDailySummary() };
   }
 }
 
@@ -80,7 +77,7 @@ async function doBootstrap(supabase: SupabaseClient): Promise<AppBootstrapState>
 
   return {
     summary: home.progress,
-    daily: home.daily,
+    daily: emptyDailySummary(timeZone),
     prefs,
     spouseSelection: parseSpousePrayerSelection(prefs?.spouse_prayer_selection),
     timeZone,

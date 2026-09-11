@@ -96,6 +96,10 @@ export function localDateString(now: Date, timeZone: string): string {
   }).format(now);
 }
 
+export function getLocalDateString(timeZone: string, now = new Date()): string {
+  return localDateString(now, timeZone);
+}
+
 export function formatKoreanDate(localDate: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate);
   if (!match) return localDate;

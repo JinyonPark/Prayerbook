@@ -11,7 +11,7 @@
 - 마지막 읽은 항목과 스크롤 비율 저장, 이어 기도하기
 - 주간/야간 모드, 글자 크기, 줄 간격
 - 항목별 횟수 수정/초기화, 현재 독수 초기화, 기본 기도 전체 초기화, 모든 기록 초기화, 일괄 설정
-- 날짜별·월별 기도 이력(기기 로컬 숨김)
+- 오늘·누적 기도 횟수와 날짜별 이력은 현재 기기 IndexedDB에 저장
 - 설치 가능한 PWA, 기기별 설치 안내
 - 오프라인에서 캐시된 기도문 읽기(완료 저장은 온라인만)
 
@@ -25,6 +25,8 @@
 - 설치 가능한 PWA(Web App Manifest + 직접 작성한 Service Worker)
 
 PWA에 폐기된 `next-pwa` 패키지를 사용하지 않았습니다. 인증 응답과 진행 데이터 API를 캐시하지 않기 위해 Service Worker를 `public/sw.js`에 직접 구현했습니다.
+
+오늘 기도 횟수, 앱 누적 횟수, 누적 초기값, 날짜별 이력은 별도 IndexedDB wrapper 패키지 없이 브라우저 기본 IndexedDB를 `lib/local-prayer-db`에서 감싸 저장합니다. 의존성 추가 없이 트랜잭션과 사용자별 키를 직접 다루기 위해서입니다. Service Worker 업데이트는 이 IndexedDB를 삭제하지 않습니다.
 
 ## 디렉터리 구조
 
@@ -150,14 +152,14 @@ Vercel production:
   - `https://prayer-book-chi.vercel.app/login`
 
 비밀번호 재설정 메일의 redirect는 `{SITE_URL}/auth/callback?next=/reset-password`입니다.
-회원가입 확인 메일은 `{SITE_URL}/auth/callback?next=/login`입니다.
+회원가입 확인 메일은 더 이상 보내지 않습니다. 인증 정책은 `docs/email-signup-and-password-reset.md`, Dashboard 항목은 `docs/supabase-auth-settings.md`를 따릅니다.
 
 ### 대시보드에서 직접 확인할 항목
 
-- Email provider 활성화
-- Confirm signup / Reset password 이메일 템플릿
-- Custom SMTP: 운영에서는 기본 테스트 메일 제한(시간당 약 2통)에만 의존하지 마세요. SMTP가 없으면 메일이 스팸함으로 가거나 발송이 거절될 수 있습니다.
-- 발신자 이름과 발신 이메일(SMTP 사용 시)
+- Email provider 활성화, Confirm Email 비활성화
+- Custom SMTP: 비밀번호 재설정 메일을 일반 사용자에게 보내려면 필요하다. 기본 테스트 메일은 시간당 약 2통이며 팀 주소로만 발송될 수 있다.
+- Rate Limits, Site URL, Redirect URLs: `docs/supabase-auth-settings.md`
+- 공개 배포 후 자동 가입 공격이 늘면 Authentication CAPTCHA를 검토한다.
 
 ### Vercel 환경 변수
 

@@ -20,11 +20,15 @@ import { captureReadingAnchor, readingPersistEquals, restoreReadingAnchor } from
 import { getScrollRatio, restoreScrollRatio } from "@/lib/reading/scroll-ratio";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { completePrayerRequest } from "@/lib/progress/complete-request";
-import { applyCompleteResultToDaily, applyCompleteResultToSummary } from "@/lib/progress/complete-state";
+import { applyCompleteResultToSummary } from "@/lib/progress/complete-state";
 import { hasPublicEnv } from "@/lib/validation/env";
 import { eligibleCountFromSummary } from "@/lib/progress/calculate";
 import { excludedSpouseItemNumber, resolveSpousePrayerSelection } from "@/lib/progress/spouse";
 import { getAdjacentSequentialPrayers } from "@/lib/prayers/sequential";
+import { getLocalDateString } from "@/lib/progress/timezone";
+import { getLocalPrayerStore, prepareLocalCompletionEvent } from "@/lib/local-prayer-db";
+import { confirmLocalCompletionView } from "@/lib/local-prayer-db/sync";
+import { LOCAL_APPLY_RETRY_NOTICE } from "@/lib/local-prayer-db/constants";
 import { perfLog, perfMark, perfMeasure } from "@/lib/perf/marks";
 import {
   remainingAutoScrollDelay,
@@ -54,7 +58,11 @@ export function PrayerReader({ prayer, prayers }: Props) {
     personalizations,
     prayerInputs,
     savePrayerInputs,
-    setDailySummary,
+    userId,
+    timeZone,
+    prayerLabels,
+    applyLocalStatsView,
+    setLocalStatsNotice,
   } = useAppState();
   const [tocOpen, setTocOpen] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
@@ -557,23 +565,54 @@ export function PrayerReader({ prayer, prayers }: Props) {
     const eventId = completeEventId.current;
     try {
       const supabase = createBrowserSupabaseClient();
+      if (userId) {
+        await prepareLocalCompletionEvent(getLocalPrayerStore(), {
+          userId,
+          clientEventId: eventId,
+          prayerItemId: prayer.id,
+          localDate: getLocalDateString(timeZone),
+          nowIso: new Date().toISOString(),
+        });
+      }
       const result = await completePrayerRequest(supabase, prayer.id, eventId);
       completeEventId.current = null;
       setSummary((current) => applyCompleteResultToSummary(current, result, prayer.id));
-      setDailySummary((current) =>
-        applyCompleteResultToDaily(current, result, {
-          prayerItemId: prayer.id,
-          prayerTitle: prayer.title,
-          itemNumber: prayer.item_number,
-          category: prayer.category,
-        }),
-      );
       perfMark("complete_state_updated");
       setStatus("saved");
       perfMark("complete_success_visible");
       perfMeasure("complete_click_to_success", "complete_click", "complete_success_visible");
       perfLog("complete");
       if (result.total_changed) setCelebration(result.current_total);
+      if (userId) {
+        void confirmLocalCompletionView({
+          userId,
+          clientEventId: eventId,
+          prayerItemId: prayer.id,
+          timeZone,
+          prayers: prayerLabels,
+        })
+          .then((view) => {
+            applyLocalStatsView(view);
+            setLocalStatsNotice(null);
+          })
+          .catch(() => {
+            setLocalStatsNotice(LOCAL_APPLY_RETRY_NOTICE);
+            void confirmLocalCompletionView({
+              userId,
+              clientEventId: eventId,
+              prayerItemId: prayer.id,
+              timeZone,
+              prayers: prayerLabels,
+            })
+              .then((view) => {
+                applyLocalStatsView(view);
+                setLocalStatsNotice(null);
+              })
+              .catch(() => {
+                setLocalStatsNotice(LOCAL_APPLY_RETRY_NOTICE);
+              });
+          });
+      }
     } catch (err) {
       logDevError("onComplete", err);
       setStatus("failed");

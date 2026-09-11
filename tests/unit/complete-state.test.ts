@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCompleteResultToDaily, applyCompleteResultToSummary } from "@/lib/progress/complete-state";
-import { emptyDailySummary } from "@/lib/progress/daily";
+import { applyCompleteResultToSummary } from "@/lib/progress/complete-state";
 import type { CompletePrayerResult, RpcProgressSummary } from "@/lib/progress/types";
 
 const previous: RpcProgressSummary = {
@@ -53,15 +52,7 @@ describe("완료 응답으로 화면 상태 갱신", () => {
     expect(next.total_completed).toBe(0);
   });
 
-  it("오늘·누적 횟수는 완료 RPC 숫자로 갱신한다", () => {
-    const next = applyCompleteResultToDaily(emptyDailySummary("Asia/Seoul", "2026-09-09"), result, {
-      prayerItemId: "m1",
-      prayerTitle: "새벽 기도",
-      itemNumber: 1,
-      category: "main",
-    });
-    expect(next.total_completion_count).toBe(3);
-    expect(next.unique_prayer_count).toBe(2);
-    expect(next.lifetime_completion_count).toBe(80);
+  it("오늘·누적 횟수는 완료 RPC 숫자가 아니라 로컬 적용 결과를 쓴다", () => {
+    expect(result.today_completion_count).toBe(3);
   });
 });

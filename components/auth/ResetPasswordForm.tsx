@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { PasswordField } from "@/components/auth/PasswordField";
@@ -13,6 +13,7 @@ import { hasPublicEnv } from "@/lib/validation/env";
 type ReadyState = "checking" | "ok" | "missing";
 
 export function ResetPasswordForm() {
+  const inflight = useRef(false);
   const [ready, setReady] = useState<ReadyState>("checking");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -60,10 +61,12 @@ export function ResetPasswordForm() {
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (pending) return;
+    if (inflight.current || pending) return;
+    inflight.current = true;
     setError(null);
     const passwordError = validateNewPassword(password, confirmPassword);
     if (passwordError) {
+      inflight.current = false;
       setError(passwordError);
       return;
     }
@@ -85,6 +88,7 @@ export function ResetPasswordForm() {
     } catch {
       setError(AUTH_MESSAGES.network);
     } finally {
+      inflight.current = false;
       setPending(false);
     }
   }

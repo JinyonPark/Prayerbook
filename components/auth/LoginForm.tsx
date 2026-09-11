@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { PasswordField } from "@/components/auth/PasswordField";
 import { Button } from "@/components/ui/Button";
-import { AUTH_MESSAGES, MAIL_COOLDOWN_SECONDS } from "@/lib/auth/messages";
+import { AUTH_MESSAGES } from "@/lib/auth/messages";
 import { MIN_LOGIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import { safeNextPath } from "@/lib/auth/redirect";
 import { hasPublicEnv } from "@/lib/validation/env";
@@ -20,12 +20,9 @@ export function LoginForm() {
   const [visible, setVisible] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [unconfirmed, setUnconfirmed] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [resendMessage, setResendMessage] = useState<string | null>(null);
   const configured = useMemo(() => hasPublicEnv(), []);
-  const confirmed = search.get("confirmed") === "1";
   const resetDone = search.get("reset") === "success";
+  const inflight = useRef(false);
 
   useEffect(() => {
     const mode = search.get("mode");
@@ -34,19 +31,13 @@ export function LoginForm() {
     if (mode === "update") router.replace("/reset-password");
   }, [router, search]);
 
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = window.setTimeout(() => setResendCooldown((value) => value - 1), 1000);
-    return () => window.clearTimeout(timer);
-  }, [resendCooldown]);
-
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (pending) return;
+    if (inflight.current || pending) return;
+    inflight.current = true;
     setError(null);
-    setUnconfirmed(false);
-    setResendMessage(null);
     if (!configured) {
+      inflight.current = false;
       setError(AUTH_MESSAGES.configMissing);
       return;
     }
@@ -59,8 +50,7 @@ export function LoginForm() {
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; code?: string } | null;
       if (response.status === 403 && payload?.code === "unconfirmed") {
-        setUnconfirmed(true);
-        setError(AUTH_MESSAGES.unconfirmed);
+        setError(payload.error || AUTH_MESSAGES.unconfirmed);
         return;
       }
       if (!response.ok) {
@@ -72,31 +62,7 @@ export function LoginForm() {
     } catch {
       setError(AUTH_MESSAGES.network);
     } finally {
-      setPending(false);
-    }
-  }
-
-  async function resendConfirmation() {
-    if (resendCooldown > 0 || pending) return;
-    setPending(true);
-    setResendMessage(null);
-    try {
-      const response = await fetch("/api/auth/resend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (response.status === 429) {
-        setResendCooldown(MAIL_COOLDOWN_SECONDS);
-        setError(payload?.error || AUTH_MESSAGES.rateLimit);
-        return;
-      }
-      setResendCooldown(MAIL_COOLDOWN_SECONDS);
-      setResendMessage("인증 메일을 다시 보냈습니다. 받은편지함과 스팸함을 확인해 주세요.");
-    } catch {
-      setError(AUTH_MESSAGES.network);
-    } finally {
+      inflight.current = false;
       setPending(false);
     }
   }
@@ -106,37 +72,22 @@ export function LoginForm() {
       {search.get("error") === "config" ? (
         <p className="mb-4 rounded-xl bg-[var(--card)] p-3 text-sm">{AUTH_MESSAGES.configMissing}</p>
       ) : null}
-      {confirmed ? (
-        <p className="mb-4 rounded-xl bg-[var(--card)] p-3 text-sm" role="status">
-          이메일 인증이 완료되었습니다. 로그인해 주세요.
-        </p>
-      ) : null}
       {resetDone ? (
         <p className="mb-4 rounded-xl bg-[var(--card)] p-3 text-sm whitespace-pre-line" role="status">
           {AUTH_MESSAGES.passwordChanged}
         </p>
-      ) : null}
-      {unconfirmed ? (
-        <div className="mb-4 space-y-3 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
-          <p className="whitespace-pre-line" role="alert">
-            {AUTH_MESSAGES.unconfirmed}
-          </p>
-          {resendMessage ? <p role="status">{resendMessage}</p> : null}
-          <Button type="button" className="w-full" disabled={pending || resendCooldown > 0} onClick={() => void resendConfirmation()}>
-            {resendCooldown > 0 ? AUTH_MESSAGES.cooldown(resendCooldown) : "인증 메일 다시 보내기"}
-          </Button>
-        </div>
       ) : null}
       <form className="space-y-4" noValidate onSubmit={(event) => void onSubmit(event)}>
         <label className="block" htmlFor="login-email">
           <span className="mb-1 block text-sm">이메일</span>
           <input
             id="login-email"
-            type="text"
+            type="email"
             required
             autoComplete="username"
             inputMode="email"
             value={email}
+            disabled={pending}
             onChange={(event) => setEmail(event.target.value)}
             className="touch-target w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-3"
           />
@@ -152,7 +103,7 @@ export function LoginForm() {
           onChange={setPassword}
           disabled={pending}
         />
-        {error && !unconfirmed ? (
+        {error ? (
           <p className="whitespace-pre-line" role="alert">
             {error}
           </p>

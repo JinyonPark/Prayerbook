@@ -28,6 +28,8 @@ describe("첫 실행 오늘의 기도", () => {
     expect(providers).toContain('if (reason === "mount" && hydratedDailyRef.current) return;');
     expect(providers).toContain("void refreshDaily()");
     expect(providers).toContain("if (!bootReady) return");
+    expect(providers).toContain("loadLocalStatsView");
+    expect(providers).not.toContain("fetchDailyPrayerSummary");
   });
 
   it("기록이 오기 전에는 아직 완료한 기도가 없습니다를 보이지 않는다", () => {

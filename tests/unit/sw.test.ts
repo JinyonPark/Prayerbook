@@ -6,7 +6,7 @@ describe("service worker", () => {
   const sw = readFileSync(path.join(process.cwd(), "public/sw.js"), "utf8");
 
   it("Next 라우터 RSC 요청은 가로채지 않는다", () => {
-    expect(sw).toContain("prayer-book-v28");
+    expect(sw).toContain("prayer-book-v29");
     expect(sw).toContain("isNextRouterRequest");
     expect(sw).toContain('searchParams.has("_rsc")');
     expect(sw).toContain('headers.has("RSC")');
@@ -14,7 +14,8 @@ describe("service worker", () => {
     expect(sw).toContain("if (request.method !== \"GET\") return");
     expect(sw).toContain("if (request.mode === \"navigate\") return");
     expect(sw).toContain('url.pathname.startsWith("/prayers")');
-    expect(sw).toContain('url.pathname.startsWith("/history")');
+    expect(sw).not.toContain("indexedDB.deleteDatabase");
+    expect(sw).toContain("Cache version changes must not delete IndexedDB");
     expect(sw).toContain('url.pathname.startsWith("/_next/")');
   });
 });

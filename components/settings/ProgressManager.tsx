@@ -14,10 +14,14 @@ import { MAIN_PRAYER_COUNT } from "@/lib/prayers/catalog";
 import { parseCountInput } from "@/lib/validation/count";
 import { mutateProgress } from "@/lib/progress/mutate-request";
 import { mapSummaryItems } from "@/lib/supabase/rpc";
-import { clearedDailySummaryForReset } from "@/lib/progress/daily";
 import { toUserMessage } from "@/lib/errors/user-message";
 import type { PrayerItemRecord } from "@/lib/prayers/markdown";
 import type { RpcMutationResult } from "@/lib/progress/types";
+import {
+  INITIAL_COUNT_HELP,
+  LOCAL_DEVICE_NOTICE,
+  parseInitialCompletionCount,
+} from "@/lib/local-prayer-db";
 
 type EditState = {
   item: PrayerItemRecord;
@@ -25,7 +29,7 @@ type EditState = {
 };
 
 export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
-  const { summary, setSummary, setDailySummary, refreshDaily, online, spouseSelection } = useAppState();
+  const { summary, setSummary, online, spouseSelection, activityStats, localStatsNotice, updateInitialCount } = useAppState();
   const items = useMemo(() => (summary ? mapSummaryItems(summary) : []), [summary]);
   const current = calculateProgressFromItems(items, spouseSelection);
   const [edit, setEdit] = useState<EditState | null>(null);
@@ -35,6 +39,8 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
   const [mainConfirm, setMainConfirm] = useState("");
   const [allConfirm, setAllConfirm] = useState("");
   const [bulkValue, setBulkValue] = useState("10");
+  const [initialEdit, setInitialEdit] = useState<string | null>(null);
+  const [initialError, setInitialError] = useState<string | null>(null);
   const [dialogs, setDialogs] = useState({
     resetItem: null as PrayerItemRecord | null,
     round: false,
@@ -55,11 +61,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
     afterSummary.currentRound === current.currentRound &&
     afterSummary.currentCompletedCount === current.currentCompletedCount;
 
-  async function run(
-    task: () => Promise<RpcMutationResult>,
-    successText: string,
-    options?: { resetShareCounts?: boolean },
-  ) {
+  async function run(task: () => Promise<RpcMutationResult>, successText: string) {
     setPending(true);
     setError(null);
     try {
@@ -73,10 +75,6 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
         spouse_prayer_selection: data.spouse_prayer_selection,
         items: data.items ?? summary?.items ?? [],
       });
-      if (options?.resetShareCounts) {
-        setDailySummary(clearedDailySummaryForReset);
-      }
-      void refreshDaily();
       setResult(
         `${successText} Total ${data.current_total}독, ${data.current_round}독 진행 중 ${data.current_completed_count}/${current.eligibleCount}`,
       );
@@ -105,8 +103,25 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
         {error ? <p role="alert">{error}</p> : null}
       </section>
 
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+        <h2 className="text-lg font-semibold">기도 활동 통계</h2>
+        <p className="mt-2 text-sm text-[var(--muted)]">{LOCAL_DEVICE_NOTICE}</p>
+        <p className="mt-3">오늘 기도 횟수</p>
+        <p className="text-lg font-semibold">{activityStats.todayCompletionCount}회</p>
+        <p className="mt-3">앱에서 기록한 누적 기도 횟수</p>
+        <p className="text-lg font-semibold">{activityStats.appCompletionCount}회</p>
+        <p className="mt-3">누적 기도 횟수 초기값</p>
+        <p className="text-lg font-semibold">{activityStats.initialCompletionCount}회</p>
+        <p className="mt-1 text-sm text-[var(--muted)]">{INITIAL_COUNT_HELP}</p>
+        <Button variant="secondary" className="mt-2" onClick={() => { setInitialError(null); setInitialEdit(String(activityStats.initialCompletionCount)); }}>
+          초기값 수정
+        </Button>
+        <p className="mt-3">지금까지 누적 기도 횟수</p>
+        <p className="text-lg font-semibold">{activityStats.displayedLifetimeCount}회</p>
+        {localStatsNotice ? <p className="mt-3 text-sm" role="status">{localStatsNotice}</p> : null}
+      </section>
+
       <section>
-        <h2 className="mb-2 text-lg font-semibold">항목별 완료 횟수</h2>
         <ul className="space-y-2">
           {prayers.map((prayer) => {
             const count = items.find((item) => item.id === prayer.id)?.completionCount ?? 0;
@@ -339,7 +354,7 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
       </Modal>
 
       <Modal open={dialogs.all} title="모든 기도 기록 초기화" onClose={() => setDialogs((d) => ({ ...d, all: false }))} closeDisabled={pending}>
-        <p>기본 기도와 추가 기도 완료 횟수, 오늘 기도 횟수, 지금까지 누적 기도 횟수를 모두 0으로 변경합니다. 선택에서 제외된 배우자 기도도 포함됩니다. 계정과 읽기 설정은 유지됩니다.</p>
+        <p>기본 기도와 추가 기도 완료 횟수를 0으로 변경합니다. 오늘 기도 횟수, 누적 기도 횟수, 날짜별 이력은 이 기기에 그대로 남습니다. 선택에서 제외된 배우자 기도도 포함됩니다. 계정과 읽기 설정은 유지됩니다.</p>
         <p className="mt-3 text-sm">확인을 위해 모든 기록 초기화를 입력하세요.</p>
         <input className="touch-target mt-2 w-full rounded-xl border border-[var(--border)] px-3" value={allConfirm} onChange={(e) => setAllConfirm(e.target.value)} />
         <div className="mt-4 flex gap-2">
@@ -353,7 +368,6 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
               const saved = await run(
                 () => mutateProgress({ op: "reset_all", clientEventId: clientEventId() }),
                 "초기화했습니다.",
-                { resetShareCounts: true },
               );
               if (!saved) return;
               setAllConfirm("");
@@ -404,6 +418,44 @@ export function ProgressManager({ prayers }: { prayers: PrayerItemRecord[] }) {
             }}
           >
             적용
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={initialEdit !== null}
+        title="누적 기도 횟수 초기값"
+        onClose={() => { setInitialEdit(null); setInitialError(null); }}
+      >
+        <p className="text-sm text-[var(--muted)]">{INITIAL_COUNT_HELP}</p>
+        <input
+          className="touch-target mt-3 w-full rounded-xl border border-[var(--border)] px-3"
+          value={initialEdit ?? ""}
+          inputMode="numeric"
+          onChange={(event) => setInitialEdit(event.target.value)}
+        />
+        {initialError ? <p className="mt-2" role="alert">{initialError}</p> : null}
+        <div className="mt-4 flex gap-2">
+          <Button variant="secondary" onClick={() => { setInitialEdit(null); setInitialError(null); }}>
+            취소
+          </Button>
+          <Button
+            onClick={async () => {
+              const parsed = parseInitialCompletionCount(initialEdit ?? "");
+              if (!parsed.ok) {
+                setInitialError(parsed.message);
+                return;
+              }
+              try {
+                await updateInitialCount(parsed.value);
+                setInitialEdit(null);
+                setInitialError(null);
+              } catch (err) {
+                setInitialError(toUserMessage(err));
+              }
+            }}
+          >
+            저장
           </Button>
         </div>
       </Modal>

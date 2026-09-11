@@ -40,19 +40,42 @@ test("잘못된 code도 무한 로딩 없이 오류 화면으로 간다", async 
   await expect(page.getByRole("link", { name: "새 링크 요청" })).toBeVisible();
 });
 
+test("회원가입 화면에 인증 메일 재전송이 없다", async ({ page }) => {
+  await page.goto("/signup");
+  await expect(page.getByRole("heading", { name: "회원가입" })).toBeVisible();
+  await expect(page.getByLabel("이메일", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("이메일 확인")).toBeVisible();
+  await expect(page.getByText("실제로 사용하는 이메일 주소를 정확하게 입력해 주세요.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "인증 메일 재전송" })).toHaveCount(0);
+  await expect(page.getByText("인증 메일을 보냈습니다")).toHaveCount(0);
+});
+
 test("회원가입 비밀번호 확인이 다르면 전송하지 않는다", async ({ page }) => {
   await page.goto("/signup");
-  await page.getByLabel("이메일").fill("qa-mismatch@example.com");
+  await page.getByLabel("이메일", { exact: true }).fill("qa-mismatch@example.com");
+  await page.getByLabel("이메일 확인").fill("qa-mismatch@example.com");
   await page.getByLabel("비밀번호", { exact: true }).fill("long-enough");
   await page.getByLabel("비밀번호 확인").fill("different1");
   await page.getByRole("button", { name: "회원가입" }).click();
-  await expect(page.locator("p[role='alert']")).toContainText("새 비밀번호와 비밀번호 확인이 일치하지 않습니다.");
+  await expect(page.locator("p[role='alert']")).toContainText("비밀번호와 비밀번호 확인이 일치하지 않습니다.");
+  await expect(page.getByRole("button", { name: "회원가입" })).toBeVisible();
+});
+
+test("회원가입 이메일 확인이 다르면 전송하지 않는다", async ({ page }) => {
+  await page.goto("/signup");
+  await page.getByLabel("이메일", { exact: true }).fill("qa-one@example.com");
+  await page.getByLabel("이메일 확인").fill("qa-two@example.com");
+  await page.getByLabel("비밀번호", { exact: true }).fill("long-enough");
+  await page.getByLabel("비밀번호 확인").fill("long-enough");
+  await page.getByRole("button", { name: "회원가입" }).click();
+  await expect(page.locator("p[role='alert']")).toContainText("이메일 주소가 일치하지 않습니다.");
   await expect(page.getByRole("button", { name: "회원가입" })).toBeVisible();
 });
 
 test("짧은 비밀번호는 가입을 막는다", async ({ page }) => {
   await page.goto("/signup");
-  await page.getByLabel("이메일").fill("qa-short@example.com");
+  await page.getByLabel("이메일", { exact: true }).fill("qa-short@example.com");
+  await page.getByLabel("이메일 확인").fill("qa-short@example.com");
   await page.getByLabel("비밀번호", { exact: true }).fill("short");
   await page.getByLabel("비밀번호 확인").fill("short");
   await page.getByRole("button", { name: "회원가입" }).click();
@@ -66,8 +89,8 @@ test("미가입 이메일 재설정도 같은 안내를 보여준다", async ({ 
   await page.getByRole("button", { name: "재설정 링크 보내기" }).click();
   await expect(page.getByText(RESET_COPY)).toBeVisible();
   await expect(page.getByText("가입되지 않은 이메일")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "회원가입" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /다시 보낼 수 있습니다|메일 다시 보내기/ })).toBeDisabled();
+  await expect(page.getByRole("link", { name: "로그인으로 돌아가기" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /다시 보낼 수 있습니다|재설정 메일 다시 보내기/ })).toBeDisabled();
 });
 
 const hasCreds = Boolean(process.env.E2E_TEST_USER_EMAIL && process.env.E2E_TEST_USER_PASSWORD);

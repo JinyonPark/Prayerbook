@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { fetchDailyPrayerSummary, fetchProgressSummary } from "@/lib/supabase/rpc";
+import { fetchProgressSummary } from "@/lib/supabase/rpc";
 import { bootstrapAppState, personalizationsFromBootstrap } from "@/lib/progress/bootstrap";
 import type { RpcProgressSummary } from "@/lib/progress/types";
 import type { ReadingState, UserPreferences } from "@/lib/progress/types";
@@ -25,13 +25,31 @@ import { isAuthFailure, logDevError } from "@/lib/errors/inspect";
 import { emptyDailySummary, type DailyPrayerSummary } from "@/lib/progress/daily";
 import { parseShareFormat, type ShareFormatPreference } from "@/lib/progress/share-content";
 import { detectBrowserTimeZone, msUntilNextMidnight, normalizeTimeZone } from "@/lib/progress/timezone";
-import { clearHistoryVisibilityOnLogoutMemoryOnly } from "@/lib/progress/history-visibility";
+import {
+  BOOTSTRAP_FAILED_NOTICE,
+  EXPIRED_PENDING_NOTICE,
+  type ActivityStats,
+  type PrayerLabel,
+} from "@/lib/local-prayer-db";
+import {
+  bootstrapLocalStatsView,
+  emptyActivityStats,
+  emptyLocalStatsView,
+  loadLocalStatsView,
+  retryPendingLocalCompletions,
+  type LocalStatsView,
+} from "@/lib/local-prayer-db/sync";
+import { updateInitialCompletionCount, getLocalPrayerStore } from "@/lib/local-prayer-db";
 import { perfMark } from "@/lib/perf/marks";
 
 type AppState = {
   summary: RpcProgressSummary | null;
   bootReady: boolean;
+  userId: string | null;
   dailySummary: DailyPrayerSummary;
+  activityStats: ActivityStats;
+  localStatsNotice: string | null;
+  setLocalStatsNotice: Dispatch<SetStateAction<string | null>>;
   timeZone: string;
   reading: ReadingState | null;
   prefs: CachedPreferences;
@@ -41,6 +59,7 @@ type AppState = {
   online: boolean;
   setSummary: Dispatch<SetStateAction<RpcProgressSummary | null>>;
   setDailySummary: Dispatch<SetStateAction<DailyPrayerSummary>>;
+  applyLocalStatsView: (view: LocalStatsView) => void;
   setReading: (reading: ReadingState) => void;
   setPersonalizations: (rows: PersonalizationRow[]) => void;
   setPrayerInputs: (rows: PrayerInputRow[]) => void;
@@ -49,8 +68,10 @@ type AppState = {
   savePrayerInputs: (prayerItemId: string, values: PrayerInputValues) => Promise<void>;
   refresh: () => Promise<void>;
   refreshDaily: () => Promise<boolean>;
+  updateInitialCount: (value: number) => Promise<void>;
   shareFormat: ShareFormatPreference;
   updateShareFormat: (format: ShareFormatPreference) => Promise<void>;
+  prayerLabels: PrayerLabel[];
 };
 
 const AppStateContext = createContext<AppState | null>(null);
@@ -106,6 +127,22 @@ function sessionUserId(supabase: ReturnType<typeof createBrowserSupabaseClient>)
   return supabase.auth.getSession().then(({ data }) => data.session?.user?.id ?? null);
 }
 
+function prayerLabelsFromSummary(summary: RpcProgressSummary | null): PrayerLabel[] {
+  return (summary?.items ?? []).map((item) => ({
+    id: item.prayer_item_id,
+    title: item.title,
+    itemNumber: item.item_number,
+    category: item.category,
+    displayOrder: item.display_order,
+  }));
+}
+
+function noticeFromView(view: LocalStatsView): string | null {
+  if (view.expiredPending) return EXPIRED_PENDING_NOTICE;
+  if (view.bootstrapFailed) return BOOTSTRAP_FAILED_NOTICE;
+  return null;
+}
+
 export function AppProviders({
   children,
   initialSummary,
@@ -118,9 +155,12 @@ export function AppProviders({
   initialTimeZone,
 }: Props) {
   const [summary, setSummary] = useState(initialSummary);
+  const [userId, setUserId] = useState<string | null>(null);
   const [dailySummary, setDailySummary] = useState<DailyPrayerSummary>(
     initialDailySummary ?? emptyDailySummary(initialTimeZone),
   );
+  const [activityStats, setActivityStats] = useState<ActivityStats>(() => emptyActivityStats(initialTimeZone ?? "Asia/Seoul"));
+  const [localStatsNotice, setLocalStatsNotice] = useState<string | null>(null);
   const [timeZone, setTimeZone] = useState(normalizeTimeZone(initialTimeZone ?? initialPrefs?.time_zone));
   const [reading, setReading] = useState(initialReading);
   const [personalizations, setPersonalizations] = useState(initialPersonalizations);
@@ -132,7 +172,18 @@ export function AppProviders({
   const [bootReady, setBootReady] = useState(Boolean(initialSummary));
   const timeZoneRef = useRef(timeZone);
   timeZoneRef.current = timeZone;
+  const summaryRef = useRef(summary);
+  summaryRef.current = summary;
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
   const hydratedDailyRef = useRef(Boolean(initialDailySummary?.local_date));
+
+  const applyLocalStatsView = useCallback((view: LocalStatsView) => {
+    setDailySummary(view.daily);
+    setActivityStats(view.activity);
+    setLocalStatsNotice(noticeFromView(view));
+    hydratedDailyRef.current = Boolean(view.daily.local_date);
+  }, []);
 
   useEffect(() => {
     if (bootReady || !hasPublicEnv()) {
@@ -141,10 +192,8 @@ export function AppProviders({
     }
     const supabase = createBrowserSupabaseClient();
     void bootstrapAppState(supabase)
-      .then((state) => {
+      .then(async (state) => {
         setSummary(state.summary);
-        setDailySummary(state.daily);
-        hydratedDailyRef.current = Boolean(state.daily.local_date);
         setReading(state.reading);
         setPrayerInputs(state.inputs);
         setPersonalizations(personalizationsFromBootstrap(state));
@@ -156,6 +205,26 @@ export function AppProviders({
           const next = prefsFromServer(state.prefs, readCachedPreferences());
           setPrefs(next);
           writeCachedPreferences(next);
+        }
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const id = session?.user?.id ?? null;
+        setUserId(id);
+        if (id) {
+          const local = await bootstrapLocalStatsView({
+            userId: id,
+            timeZone: state.timeZone,
+            prayers: prayerLabelsFromSummary(state.summary),
+            supabase,
+          });
+          applyLocalStatsView(local);
+          void retryPendingLocalCompletions({
+            userId: id,
+            timeZone: state.timeZone,
+            prayers: prayerLabelsFromSummary(state.summary),
+            supabase,
+          }).then(applyLocalStatsView).catch(() => undefined);
         }
         perfMark("home_data_ready");
         setBootReady(true);
@@ -169,7 +238,7 @@ export function AppProviders({
         }
         setBootReady(true);
       });
-  }, [bootReady]);
+  }, [bootReady, applyLocalStatsView]);
 
   useEffect(() => {
     const cached = readCachedPreferences();
@@ -221,17 +290,20 @@ export function AppProviders({
   }, [prefs, spouseSelection]);
 
   const refreshDaily = useCallback(async () => {
-    if (!hasPublicEnv()) return false;
-    const supabase = createBrowserSupabaseClient();
+    const id = userIdRef.current;
+    if (!id) return false;
     try {
-      const next = await fetchDailyPrayerSummary(supabase);
-      setDailySummary(next);
-      if (next.time_zone) setTimeZone(normalizeTimeZone(next.time_zone));
+      const view = await loadLocalStatsView({
+        userId: id,
+        timeZone: timeZoneRef.current,
+        prayers: prayerLabelsFromSummary(summaryRef.current),
+      });
+      applyLocalStatsView(view);
       return true;
     } catch {
       return false;
     }
-  }, []);
+  }, [applyLocalStatsView]);
 
   const refresh = useCallback(async () => {
     if (!hasPublicEnv()) return;
@@ -299,14 +371,15 @@ export function AppProviders({
     const supabase = createBrowserSupabaseClient();
     const { data } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
-        clearHistoryVisibilityOnLogoutMemoryOnly();
+        setUserId(null);
+        applyLocalStatsView(emptyLocalStatsView(timeZoneRef.current));
       }
       if (event === "PASSWORD_RECOVERY" && window.location.pathname !== "/reset-password") {
         window.location.replace("/reset-password");
       }
     });
     return () => data.subscription.unsubscribe();
-  }, []);
+  }, [applyLocalStatsView]);
 
   const updatePrefs = useCallback(async (partial: Partial<CachedPreferences>) => {
     const next = { ...readCachedPreferences(), ...prefs, ...partial };
@@ -376,6 +449,25 @@ export function AppProviders({
     setSummary(next);
   }, [spouseSelection, prefs]);
 
+  const updateInitialCount = useCallback(async (value: number) => {
+    const id = userIdRef.current;
+    if (!id) throw new Error("NOT_AUTHENTICATED");
+    const next = await updateInitialCompletionCount(getLocalPrayerStore(), id, value, new Date().toISOString());
+    const view = await loadLocalStatsView({
+      userId: id,
+      timeZone: timeZoneRef.current,
+      prayers: prayerLabelsFromSummary(summaryRef.current),
+    });
+    applyLocalStatsView({
+      ...view,
+      activity: {
+        ...view.activity,
+        initialCompletionCount: next.initialCompletionCount,
+        displayedLifetimeCount: next.initialCompletionCount + next.appCompletionCount,
+      },
+    });
+  }, [applyLocalStatsView]);
+
   const savePrayerInputs = useCallback(async (prayerItemId: string, values: PrayerInputValues) => {
     const previous = prayerInputs;
     const previousPersonalizations = personalizations;
@@ -406,7 +498,11 @@ export function AppProviders({
     () => ({
       summary,
       bootReady,
+      userId,
       dailySummary,
+      activityStats,
+      localStatsNotice,
+      setLocalStatsNotice,
       timeZone,
       reading,
       prefs,
@@ -416,6 +512,7 @@ export function AppProviders({
       online,
       setSummary,
       setDailySummary,
+      applyLocalStatsView,
       setReading,
       setPersonalizations,
       setPrayerInputs,
@@ -424,13 +521,18 @@ export function AppProviders({
       savePrayerInputs,
       refresh,
       refreshDaily,
+      updateInitialCount,
       shareFormat,
       updateShareFormat,
+      prayerLabels: prayerLabelsFromSummary(summary),
     }),
     [
       summary,
       bootReady,
+      userId,
       dailySummary,
+      activityStats,
+      localStatsNotice,
       timeZone,
       reading,
       prefs,
@@ -438,11 +540,13 @@ export function AppProviders({
       prayerInputs,
       spouseSelection,
       online,
+      applyLocalStatsView,
       updatePrefs,
       updateSpouseSelection,
       savePrayerInputs,
       refresh,
       refreshDaily,
+      updateInitialCount,
       shareFormat,
       updateShareFormat,
     ],

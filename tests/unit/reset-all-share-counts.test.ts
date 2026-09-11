@@ -20,11 +20,13 @@ describe("모든 기록 초기화와 공유 횟수 연동", () => {
     expect(sql).not.toMatch(/delete from auth\.users/i);
   });
 
-  it("설정 화면이 초기화 후 오늘 기록을 다시 불러온다", () => {
-    expect(manager).toContain("resetShareCounts: true");
-    expect(manager).toContain("clearedDailySummaryForReset");
-    expect(manager).toContain("void refreshDaily()");
+  it("설정 화면이 오늘·누적 통계를 이 기기 값으로 보여 주고 초기값만 수정한다", () => {
+    expect(manager).toContain("기도 활동 통계");
     expect(manager).toContain("오늘 기도 횟수");
     expect(manager).toContain("지금까지 누적 기도 횟수");
+    expect(manager).toContain("updateInitialCount");
+    expect(manager).not.toContain("clearedDailySummaryForReset");
+    expect(manager).not.toContain("void refreshDaily()");
+    expect(manager).not.toContain("resetShareCounts");
   });
 });

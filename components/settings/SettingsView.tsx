@@ -5,15 +5,16 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { InstallCard } from "@/components/pwa/InstallCard";
 import { AccountSecurity } from "@/components/settings/AccountSecurity";
+import { AppInfoSection } from "@/components/settings/AppInfoSection";
 import { useAppState } from "@/components/providers/AppProviders";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { toUserMessage } from "@/lib/errors/user-message";
+import { clearLocalPrayerDataForUser } from "@/lib/local-prayer-db/sync";
 
 export function SettingsView() {
   const router = useRouter();
-  const { prefs, updatePrefs, spouseSelection, updateSpouseSelection } = useAppState();
+  const { prefs, updatePrefs, spouseSelection, updateSpouseSelection, userId } = useAppState();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [pending, setPending] = useState(false);
@@ -109,8 +110,6 @@ export function SettingsView() {
         ) : null}
       </section>
 
-      <InstallCard />
-
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
         <h2 className="text-lg font-semibold">배우자 기도 선택</h2>
         <p className="mt-2 text-[var(--muted)]">
@@ -165,6 +164,8 @@ export function SettingsView() {
         </div>
       </section>
 
+      <AppInfoSection />
+
       <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 text-center">
         <h2 className="text-lg font-semibold">저작권</h2>
         <p className="mt-3 text-[11px] tracking-[0.08em] text-[var(--muted)]">Copyright © 오병이어교회</p>
@@ -217,6 +218,7 @@ export function SettingsView() {
               try {
                 const response = await fetch("/api/account/delete", { method: "POST" });
                 if (!response.ok) throw new Error("탈퇴에 실패했습니다.");
+                if (userId) await clearLocalPrayerDataForUser(userId).catch(() => undefined);
                 router.replace("/login");
                 router.refresh();
               } catch (err) {

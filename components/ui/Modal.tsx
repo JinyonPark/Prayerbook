@@ -14,6 +14,8 @@ type Props = {
   variant?: "auto" | "center" | "sheet";
   descriptionId?: string;
   initialFocusRef?: RefObject<HTMLElement | null>;
+  showHandle?: boolean;
+  handleLabel?: string;
 };
 
 export function Modal({
@@ -26,6 +28,8 @@ export function Modal({
   variant = "auto",
   descriptionId,
   initialFocusRef,
+  showHandle = false,
+  handleLabel = "닫기",
 }: Props) {
   const headingId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -114,6 +118,19 @@ export function Modal({
         }`}
         style={{ maxHeight: "calc(var(--visual-viewport-height, 100dvh) - 1.5rem)" }}
       >
+        {sheet && showHandle ? (
+          <button
+            type="button"
+            aria-label={handleLabel}
+            className="bottom-sheet-handle-button shrink-0"
+            onClick={() => {
+              if (!closeDisabled) onClose();
+            }}
+            disabled={closeDisabled}
+          >
+            <span className="bottom-sheet-handle-bar" aria-hidden="true" />
+          </button>
+        ) : null}
         <div className="flex shrink-0 items-start gap-3 border-b border-[var(--border)] px-5 py-3">
           <h2 id={headingId} className="min-w-0 flex-1 text-lg font-semibold">
             {title}

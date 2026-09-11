@@ -1,9 +1,11 @@
+import { AUTH_MESSAGES } from "@/lib/auth/messages";
 import {
   inspectError,
   isAuthFailure,
   isNetworkFailure,
   isNotFoundFailure,
   isRateLimitFailure,
+  parseAuthRetryAfterSeconds,
 } from "@/lib/errors/inspect";
 
 export const NETWORK_USER_MESSAGE = "인터넷에 연결할 수 없습니다.\n연결 상태를 확인한 후 다시 시도해 주세요.";
@@ -22,7 +24,10 @@ export function toCompleteUserMessage(error: unknown): string {
   if (isNetworkFailure(error)) return NETWORK_USER_MESSAGE;
   if (isAuthFailure(error)) return AUTH_EXPIRED_USER_MESSAGE;
   if (isNotFoundFailure(error)) return PRAYER_NOT_FOUND_USER_MESSAGE;
-  if (isRateLimitFailure(error)) return RATE_LIMIT_USER_MESSAGE;
+  if (isRateLimitFailure(error)) {
+    const retryAfter = parseAuthRetryAfterSeconds(error);
+    return retryAfter ? AUTH_MESSAGES.rateLimitWait(retryAfter) : RATE_LIMIT_USER_MESSAGE;
+  }
   return COMPLETE_SAVE_FAILED_MESSAGE;
 }
 
@@ -63,7 +68,10 @@ export function toUserMessage(error: unknown): string {
   if (code.includes("Email not confirmed")) {
     return "이메일 인증이 완료되지 않았습니다.\n가입 시 입력한 이메일에서 인증 링크를 확인해 주세요.";
   }
-  if (isRateLimitFailure(error)) return RATE_LIMIT_USER_MESSAGE;
+  if (isRateLimitFailure(error)) {
+    const retryAfter = parseAuthRetryAfterSeconds(error);
+    return retryAfter ? AUTH_MESSAGES.rateLimitWait(retryAfter) : RATE_LIMIT_USER_MESSAGE;
+  }
 
   return "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }

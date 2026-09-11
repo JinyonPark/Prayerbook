@@ -26,7 +26,14 @@ export function isAuthPublicPath(pathname: string): boolean {
 }
 
 export function safeNextPath(next: string | null | undefined, fallback = "/"): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("://")) {
+  if (
+    !next ||
+    !next.startsWith("/") ||
+    next.startsWith("//") ||
+    next.includes("://") ||
+    next.toLowerCase().includes("javascript:") ||
+    next.toLowerCase().includes("data:")
+  ) {
     return fallback;
   }
   return next;

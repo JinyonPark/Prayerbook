@@ -7,6 +7,7 @@ describe("새 비밀번호 검증", () => {
   it("짧거나 다른 확인 값을 거절한다", () => {
     expect(validateNewPassword("short", "short")).toBe("비밀번호는 최소 8자 이상 입력해 주세요.");
     expect(validateNewPassword("long-enough", "different")).toBe("새 비밀번호와 비밀번호 확인이 일치하지 않습니다.");
+    expect(validateNewPassword("long-enough", "different", "signup")).toBe("비밀번호와 비밀번호 확인이 일치하지 않습니다.");
     expect(validateNewPassword("long-enough", "long-enough")).toBeNull();
   });
 });
@@ -15,7 +16,7 @@ describe("이메일 입력", () => {
   it("앞뒤 공백을 제거하고 소문자로 만든다", () => {
     expect(parseEmailInput("  Jin@Example.com ")).toEqual({ email: "jin@example.com" });
     expect(parseEmailInput("")).toEqual({ error: "이메일을 입력해 주세요." });
-    expect(parseEmailInput("not-an-email")).toEqual({ error: "이메일 형식이 올바르지 않습니다." });
+    expect(parseEmailInput("not-an-email")).toEqual({ error: "올바른 이메일 주소를 입력해 주세요." });
   });
 });
 
@@ -46,5 +47,7 @@ describe("인증 공개 경로와 콜백", () => {
     expect(safeNextPath("/prayers/3")).toBe("/prayers/3");
     expect(safeNextPath("//evil.example")).toBe("/");
     expect(safeNextPath("https://evil.example")).toBe("/");
+    expect(safeNextPath("javascript:alert(1)")).toBe("/");
+    expect(safeNextPath("/login")).toBe("/login");
   });
 });

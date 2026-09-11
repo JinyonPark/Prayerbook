@@ -79,19 +79,38 @@ export function isNotFoundFailure(error: unknown): boolean {
   return haystack.includes("PRAYER_NOT_FOUND") || haystack.includes("P0002") || info.status === 404;
 }
 
+export function parseAuthRetryAfterSeconds(error: unknown): number | null {
+  const info = inspectError(error);
+  const match = info.message.match(/after\s+(\d+)\s+seconds/i);
+  if (!match) return null;
+  const seconds = Number(match[1]);
+  if (!Number.isFinite(seconds) || seconds < 1) return null;
+  return Math.min(Math.round(seconds), 3600);
+}
+
 export function isRateLimitFailure(error: unknown): boolean {
   const info = inspectError(error);
   const haystack = `${info.code} ${info.message}`.toLowerCase();
-  return info.status === 429 || haystack.includes("over_email_send_rate_limit") || haystack.includes("too many") || haystack.includes("for security purposes");
+  return (
+    info.status === 429 ||
+    haystack.includes("over_email_send_rate_limit") ||
+    haystack.includes("over_request_rate_limit") ||
+    haystack.includes("email rate limit") ||
+    haystack.includes("too many") ||
+    haystack.includes("for security purposes")
+  );
 }
 
 export function logDevError(where: string, error: unknown) {
   if (process.env.NODE_ENV !== "development") return;
+  logAuthError(where, error);
+}
+
+export function logAuthError(where: string, error: unknown) {
   const info = inspectError(error);
   console.warn(`[prayerbook:${where}]`, {
-    name: info.name,
     code: info.code,
     status: info.status,
-    message: info.message.slice(0, 300),
+    message: info.message.slice(0, 200),
   });
 }

@@ -11,6 +11,9 @@ describe("사용자 오류 메시지", () => {
       "이미 가입된 아이디 또는 이메일입니다.",
     );
     expect(toUserMessage({ message: "For security purposes, you can only request this after 59 seconds." })).toBe(
+      "요청이 너무 많습니다.\n59초 후 다시 시도해 주세요.",
+    );
+    expect(toUserMessage({ message: "email rate limit exceeded", code: "over_email_send_rate_limit", status: 429 })).toBe(
       "요청이 너무 많습니다.\n잠시 후 다시 시도해 주세요.",
     );
   });

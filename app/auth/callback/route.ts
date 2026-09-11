@@ -6,11 +6,9 @@ import { hasPublicEnv } from "@/lib/validation/env";
 
 function destinationFor(type: string | null, next: string): string {
   if (type === "recovery") return "/reset-password";
-  if (type === "signup" || type === "email" || type === "invite") {
-    return next === "/login" ? "/login?confirmed=1" : next;
-  }
   if (next === "/reset-password") return "/reset-password";
-  if (next === "/login") return "/login?confirmed=1";
+  if (type === "signup" || type === "email" || type === "invite") return "/";
+  if (next === "/login") return "/";
   return next;
 }
 
@@ -20,7 +18,7 @@ export async function GET(request: NextRequest) {
   const code = url.searchParams.get("code");
   const tokenHash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type") as EmailOtpType | null;
-  const next = safeNextPath(url.searchParams.get("next"));
+  const next = safeNextPath(url.searchParams.get("next"), type === "recovery" ? "/reset-password" : "/");
   const destination = destinationFor(type, next);
 
   if (!hasPublicEnv()) {

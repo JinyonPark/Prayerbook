@@ -18,7 +18,7 @@ type Props = {
 };
 
 export function TodayPrayerCard({ startHref = "/prayers" }: Props) {
-  const { dailySummary, summary, refreshDaily } = useAppState();
+  const { dailySummary, summary, refreshDaily, activityStats, localStatsNotice } = useAppState();
   const progress = {
     totalCompleted: summary?.total_completed ?? 0,
     currentRound: summary?.current_round ?? 1,
@@ -29,6 +29,7 @@ export function TodayPrayerCard({ startHref = "/prayers" }: Props) {
   const unique = dailySummary.unique_prayer_count;
   const loaded = Boolean(dailySummary.local_date);
   const empty = loaded && count === 0;
+  const lifetime = activityStats.displayedLifetimeCount;
 
   return (
     <section className="w-full max-w-xl rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 lg:max-w-md">
@@ -45,13 +46,18 @@ export function TodayPrayerCard({ startHref = "/prayers" }: Props) {
           >
             기도 시작하기
           </Link>
+          <p className="mt-4">지금까지 누적 기도</p>
+          <p className="text-lg font-semibold">{lifetime}회</p>
         </>
       ) : (
         <>
           <p className="mt-2 break-words">오늘 총 {count}회 기도했습니다.</p>
           <p className="mt-1 break-words text-[var(--muted)]">완료한 기도 항목 {unique}개</p>
+          <p className="mt-4">지금까지 누적 기도</p>
+          <p className="text-lg font-semibold">{lifetime}회</p>
         </>
       )}
+      {localStatsNotice ? <p className="mt-3 text-sm" role="status">{localStatsNotice}</p> : null}
       <ShareContentDialog dailySummary={dailySummary} progress={progress} onRefresh={refreshDaily} />
     </section>
   );

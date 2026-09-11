@@ -1,6 +1,5 @@
 import type { PrayerCountItem } from "@/lib/progress/calculate";
 import { normalizeDailySummary, type DailyPrayerSummary } from "@/lib/progress/daily";
-import type { HistoryDailyRow, HistoryMonthlyRow } from "@/lib/progress/history-visibility";
 import type { RpcMutationResult, RpcProgressSummary } from "@/lib/progress/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -43,17 +42,6 @@ export async function fetchHomeDashboard(supabase: SupabaseClient): Promise<{
     },
     daily: normalizeDailySummary(row.daily),
   };
-}
-
-export async function fetchDailyPrayerSummary(
-  supabase: SupabaseClient,
-  targetDate?: string | null,
-): Promise<DailyPrayerSummary> {
-  const { data, error } = await supabase.rpc("get_daily_prayer_summary", {
-    target_date: targetDate ?? null,
-  });
-  if (error) throw error;
-  return normalizeDailySummary(data);
 }
 
 export async function rpcComplete(
@@ -141,36 +129,6 @@ export async function rpcBulkSetMain(
   });
   if (error) throw error;
   return data as RpcMutationResult;
-}
-
-export async function fetchRecentPrayerHistory(
-  supabase: SupabaseClient,
-  days = 30,
-): Promise<HistoryDailyRow[]> {
-  const { data, error } = await supabase.rpc("get_recent_prayer_history", { p_days: days });
-  if (error) throw error;
-  return Array.isArray(data) ? (data as HistoryDailyRow[]) : [];
-}
-
-export async function fetchMonthlyPrayerHistory(
-  supabase: SupabaseClient,
-  months = 12,
-): Promise<HistoryMonthlyRow[]> {
-  const { data, error } = await supabase.rpc("get_monthly_prayer_history", { p_months: months });
-  if (error) throw error;
-  return Array.isArray(data) ? (data as HistoryMonthlyRow[]) : [];
-}
-
-export async function rpcDeleteHistoryOperation(supabase: SupabaseClient, operationId: string): Promise<void> {
-  const { error } = await supabase.rpc("delete_history_operation", {
-    p_operation_id: operationId,
-  });
-  if (error) throw error;
-}
-
-export async function rpcDeleteAllHistory(supabase: SupabaseClient): Promise<void> {
-  const { error } = await supabase.rpc("delete_all_history");
-  if (error) throw error;
 }
 
 export async function rpcSavePrayerInputs(
