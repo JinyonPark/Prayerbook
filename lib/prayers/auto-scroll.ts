@@ -20,6 +20,8 @@ export function isManualScrollKey(key: string): boolean {
 
 export const AUTO_SCROLL_START_DELAY_MS = 1000;
 export const AUTO_SCROLL_NAV_GESTURE_GUARD_MS = 450;
+export const AUTO_SCROLL_START_RETRY_MS = 4000;
+export const AUTO_SCROLL_CANCEL_PX = 40;
 
 export function remainingAutoScrollDelay(
   startedAtMs: number,
@@ -45,7 +47,6 @@ export function shouldStartAutoScroll(options: {
   overlayOpen: boolean;
   cancelled: boolean;
   hasOverflow?: boolean;
-  userInteracting?: boolean;
 }): boolean {
   return (
     options.enabled &&
@@ -54,9 +55,34 @@ export function shouldStartAutoScroll(options: {
     options.visible &&
     !options.overlayOpen &&
     !options.cancelled &&
-    options.hasOverflow !== false &&
-    options.userInteracting !== true
+    options.hasOverflow !== false
   );
+}
+
+export function shouldCancelAutoStartFromUserScroll(options: {
+  restored: boolean;
+  restoring: boolean;
+  cancelled: boolean;
+  enteredAtMs: number;
+  nowMs: number;
+  startY: number;
+  currentY: number;
+  thresholdPx?: number;
+}): boolean {
+  if (!options.restored || options.restoring || options.cancelled) return false;
+  if (shouldIgnoreAutoScrollCancel(options.enteredAtMs, options.nowMs)) return false;
+  return Math.abs(options.currentY - options.startY) >= (options.thresholdPx ?? AUTO_SCROLL_CANCEL_PX);
+}
+
+export function shouldRetryAutoScrollStart(options: {
+  enabled: boolean;
+  cancelled: boolean;
+  enteredAtMs: number;
+  nowMs: number;
+  retryWindowMs?: number;
+}): boolean {
+  if (!options.enabled || options.cancelled) return false;
+  return options.nowMs - options.enteredAtMs < (options.retryWindowMs ?? AUTO_SCROLL_START_RETRY_MS);
 }
 
 export const AUTO_SCROLL_RESUME_IDLE_MS = 1200;

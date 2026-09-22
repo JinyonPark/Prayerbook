@@ -6,6 +6,8 @@ import {
   remainingAutoScrollDelay,
   shouldIgnoreAutoScrollCancel,
   shouldStartAutoScroll,
+  shouldRetryAutoScrollStart,
+  shouldCancelAutoStartFromUserScroll,
   shouldWriteAutoScrollFrame,
   isUserScrollGestureLockActive,
   didViewportOrientationFlip,
@@ -111,19 +113,94 @@ describe("자동 스크롤", () => {
         visible: true,
         overlayOpen: false,
         cancelled: false,
-        userInteracting: true,
-      }),
-    ).toBe(false);
-    expect(
-      shouldStartAutoScroll({
-        enabled: true,
-        restored: true,
-        visible: true,
-        overlayOpen: false,
-        cancelled: false,
         hasOverflow: false,
       }),
     ).toBe(false);
+  });
+
+  it("레이아웃이 늦게 잡혀도 시작 재시도 창 안에서는 다시 시도한다", () => {
+    expect(
+      shouldRetryAutoScrollStart({
+        enabled: true,
+        cancelled: false,
+        enteredAtMs: 0,
+        nowMs: 1000,
+      }),
+    ).toBe(true);
+    expect(
+      shouldRetryAutoScrollStart({
+        enabled: true,
+        cancelled: false,
+        enteredAtMs: 0,
+        nowMs: 4000,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRetryAutoScrollStart({
+        enabled: true,
+        cancelled: true,
+        enteredAtMs: 0,
+        nowMs: 500,
+      }),
+    ).toBe(false);
+  });
+
+  it("이전 페이지 스크롤 위치로는 시작을 취소하지 않고, 복원 후 40px만 취소한다", () => {
+    expect(
+      shouldCancelAutoStartFromUserScroll({
+        restored: false,
+        restoring: false,
+        cancelled: false,
+        enteredAtMs: 0,
+        nowMs: 800,
+        startY: 0,
+        currentY: 400,
+      }),
+    ).toBe(false);
+    expect(
+      shouldCancelAutoStartFromUserScroll({
+        restored: true,
+        restoring: true,
+        cancelled: false,
+        enteredAtMs: 0,
+        nowMs: 800,
+        startY: 0,
+        currentY: 400,
+      }),
+    ).toBe(false);
+    expect(
+      shouldCancelAutoStartFromUserScroll({
+        restored: true,
+        restoring: false,
+        cancelled: false,
+        enteredAtMs: 0,
+        nowMs: 200,
+        startY: 0,
+        currentY: 80,
+      }),
+    ).toBe(false);
+    expect(
+      shouldCancelAutoStartFromUserScroll({
+        restored: true,
+        restoring: false,
+        cancelled: false,
+        enteredAtMs: 0,
+        nowMs: 800,
+        startY: 0,
+        currentY: 20,
+      }),
+    ).toBe(false);
+    expect(
+      shouldCancelAutoStartFromUserScroll({
+        restored: true,
+        restoring: false,
+        cancelled: false,
+        enteredAtMs: 0,
+        nowMs: 800,
+        startY: 0,
+        currentY: 40,
+      }),
+    ).toBe(true);
   });
 
   it("터치·제스처 잠금 중에는 auto-scroll frame을 쓰지 않는다", () => {

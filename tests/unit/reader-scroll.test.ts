@@ -18,6 +18,8 @@ describe("기도문 스크롤 충돌 방지", () => {
     expect(reader).toContain("getReaderScrollY");
     expect(reader).toContain("getReaderScrollMetrics");
     expect(owner).toContain("document.scrollingElement");
+    expect(owner).toContain("window.scrollTo");
+    expect(owner).toContain(".reader-article");
   });
 
   it("자동 스크롤 loop는 ref 하나에만 두고 unmount에서 cancel한다", () => {
@@ -28,7 +30,11 @@ describe("기도문 스크롤 충돌 방지", () => {
   });
 
   it("touch 중에는 auto-scroll write를 하지 않고 preventDefault를 쓰지 않는다", () => {
-    expect(reader).toContain("beginUserGesture");
+    expect(reader).toContain("shouldRetryAutoScrollStart");
+    expect(reader).toContain("shouldCancelAutoStartFromUserScroll");
+    expect(reader).toContain("autoStartBaselineYRef");
+    expect(reader).toContain("if (!autoRunningRef.current) return");
+    expect(reader).not.toContain("const startY = getReaderScrollY();");
     expect(reader).toContain("shouldWriteAutoScrollFrame");
     expect(reader).toContain("isUserScrollGestureLockActive");
     expect(reader).toContain('addEventListener("touchstart"');
@@ -45,10 +51,10 @@ describe("기도문 스크롤 충돌 방지", () => {
     expect(reader).toContain("if (restored.current) return");
   });
 
-  it("기도문 페이지는 html만 세로 스크롤하고 body는 중첩 overflow를 만들지 않는다", () => {
+  it("기도문 페이지는 자동 스크롤 중 smooth scroll을 쓰지 않고 html·body overflow를 풀어 문서 스크롤을 살린다", () => {
     expect(css).toContain('html[data-reader="true"]');
     expect(css).toContain("scroll-behavior: auto");
     expect(css).toContain("html[data-reader=\"true\"] body");
-    expect(css).toContain("overflow: visible");
+    expect(css).toContain("overflow-y: visible");
   });
 });

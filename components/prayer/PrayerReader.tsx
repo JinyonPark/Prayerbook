@@ -35,6 +35,8 @@ import { perfLog, perfMark, perfMeasure } from "@/lib/perf/marks";
 import {
   remainingAutoScrollDelay,
   shouldIgnoreAutoScrollCancel,
+  shouldCancelAutoStartFromUserScroll,
+  shouldRetryAutoScrollStart,
   isManualScrollKey,
   isUserScrollGestureLockActive,
   nextAutoScrollPosition,
@@ -94,6 +96,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const restoring = useRef(false);
   const completeEventId = useRef<string | null>(null);
   const autoCancelRef = useRef(false);
+  const autoStartBaselineYRef = useRef(0);
   const autoTimerRef = useRef(0);
   const autoRunningRef = useRef(false);
   const userInteractingRef = useRef(false);
@@ -258,6 +261,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
   useEffect(() => {
     restored.current = false;
     autoCancelRef.current = false;
+    autoStartBaselineYRef.current = 0;
     userInteractingRef.current = false;
     userGestureLockRef.current = false;
     lastUserInputAtRef.current = 0;
@@ -286,6 +290,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const restorePosition = useCallback(() => {
     if (prefs.autoScrollEnabled) {
       setReaderScrollY(0);
+      autoStartBaselineYRef.current = 0;
       restored.current = true;
       debugReaderScroll("restore-top", { reason: "auto-scroll-enabled" });
       return;
@@ -298,6 +303,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
     const article = articleWrapRef.current?.querySelector(".reader-article") as HTMLElement | null;
     const restoredByAnchor = restoreReadingAnchor(article, reading.anchor_key ?? null, reading.anchor_offset ?? null);
     if (!restoredByAnchor) restoreScrollRatio(reading.scroll_ratio);
+    autoStartBaselineYRef.current = getReaderScrollY();
     restored.current = true;
     window.setTimeout(() => {
       restoring.current = false;
@@ -309,6 +315,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
     const id = window.requestAnimationFrame(() => {
       if (prefs.autoScrollEnabled) {
         setReaderScrollY(0);
+        autoStartBaselineYRef.current = 0;
         restored.current = true;
         debugReaderScroll("restore-complete", { mode: "auto-top", y: getReaderScrollY() });
         void persistReadingRef.current(true);
@@ -321,6 +328,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
         return;
       }
       setReaderScrollY(0);
+      autoStartBaselineYRef.current = 0;
       restored.current = true;
       debugReaderScroll("restore-complete", { mode: "new-prayer", y: 0 });
       void persistReadingRef.current(true);
@@ -403,6 +411,8 @@ export function PrayerReader({ prayer, prayers }: Props) {
     }
 
     function beginUserGesture() {
+      if (!autoRunningRef.current) return;
+      if (shouldIgnoreAutoScrollCancel(autoEnteredAtRef.current, Date.now())) return;
       userGestureLockRef.current = true;
       userInteractingRef.current = true;
       lastUserInputAtRef.current = Date.now();
@@ -410,6 +420,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
     }
 
     function noteUserGesture() {
+      if (!autoRunningRef.current) return;
       if (!userGestureLockRef.current) userGestureLockRef.current = true;
       lastUserInputAtRef.current = Date.now();
     }
@@ -544,10 +555,16 @@ export function PrayerReader({ prayer, prayers }: Props) {
             overlayOpen: overlayOpenRef.current,
             cancelled: autoCancelRef.current,
             hasOverflow: readerHasScrollRoom(),
-            userInteracting: userInteractingRef.current || userGestureLockRef.current,
           })
         ) {
-          if (!readerHasScrollRoom() && Date.now() - autoEnteredAtRef.current < 2500) {
+          if (
+            shouldRetryAutoScrollStart({
+              enabled: prefs.autoScrollEnabled,
+              cancelled: autoCancelRef.current,
+              enteredAtMs: autoEnteredAtRef.current,
+              nowMs: Date.now(),
+            })
+          ) {
             autoTimerRef.current = window.setTimeout(arm, 50);
           }
           return;
@@ -562,11 +579,20 @@ export function PrayerReader({ prayer, prayers }: Props) {
 
   useEffect(() => {
     if (autoRunning) return;
-    const startY = getReaderScrollY();
     function cancelFromUserScroll() {
-      if (restoring.current) return;
-      if (shouldIgnoreAutoScrollCancel(autoEnteredAtRef.current, Date.now())) return;
-      if (Math.abs(getReaderScrollY() - startY) < 40) return;
+      if (
+        !shouldCancelAutoStartFromUserScroll({
+          restored: restored.current,
+          restoring: restoring.current,
+          cancelled: autoCancelRef.current,
+          enteredAtMs: autoEnteredAtRef.current,
+          nowMs: Date.now(),
+          startY: autoStartBaselineYRef.current,
+          currentY: getReaderScrollY(),
+        })
+      ) {
+        return;
+      }
       autoCancelRef.current = true;
       window.clearTimeout(autoTimerRef.current);
       debugReaderScroll("auto-cancel", { reason: "user-scroll-before-start" });
