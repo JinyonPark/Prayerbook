@@ -44,6 +44,8 @@ export function shouldStartAutoScroll(options: {
   visible: boolean;
   overlayOpen: boolean;
   cancelled: boolean;
+  hasOverflow?: boolean;
+  userInteracting?: boolean;
 }): boolean {
   return (
     options.enabled &&
@@ -51,8 +53,54 @@ export function shouldStartAutoScroll(options: {
     options.restored &&
     options.visible &&
     !options.overlayOpen &&
-    !options.cancelled
+    !options.cancelled &&
+    options.hasOverflow !== false &&
+    options.userInteracting !== true
   );
+}
+
+export const AUTO_SCROLL_RESUME_IDLE_MS = 1200;
+
+export function shouldWriteAutoScrollFrame(options: {
+  running: boolean;
+  userInteracting: boolean;
+  gestureLock: boolean;
+  restoring: boolean;
+  visible: boolean;
+  overlayOpen: boolean;
+  reachedEnd: boolean;
+}): boolean {
+  return (
+    options.running &&
+    !options.userInteracting &&
+    !options.gestureLock &&
+    !options.restoring &&
+    options.visible &&
+    !options.overlayOpen &&
+    !options.reachedEnd
+  );
+}
+
+export function isUserScrollGestureLockActive(
+  lock: boolean,
+  lastInputAtMs: number,
+  nowMs: number,
+  idleMs = AUTO_SCROLL_RESUME_IDLE_MS,
+): boolean {
+  if (!lock) return false;
+  return nowMs - lastInputAtMs < idleMs;
+}
+
+export function didViewportOrientationFlip(
+  previousWidth: number,
+  previousHeight: number,
+  nextWidth: number,
+  nextHeight: number,
+): boolean {
+  if (previousWidth < 1 || previousHeight < 1 || nextWidth < 1 || nextHeight < 1) return false;
+  const wasLandscape = previousWidth > previousHeight;
+  const isLandscape = nextWidth > nextHeight;
+  return wasLandscape !== isLandscape && Math.abs(nextWidth - previousWidth) > 40;
 }
 
 export function hasAutoScrollDelayElapsed(elapsedMs: number, delayMs = AUTO_SCROLL_START_DELAY_MS): boolean {

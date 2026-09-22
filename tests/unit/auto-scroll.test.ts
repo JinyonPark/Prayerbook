@@ -6,6 +6,9 @@ import {
   remainingAutoScrollDelay,
   shouldIgnoreAutoScrollCancel,
   shouldStartAutoScroll,
+  shouldWriteAutoScrollFrame,
+  isUserScrollGestureLockActive,
+  didViewportOrientationFlip,
   nextReaderChromeVisible,
   chromeVisibleFromFingerMove,
 } from "@/lib/prayers/auto-scroll";
@@ -101,5 +104,70 @@ describe("자동 스크롤", () => {
         cancelled: false,
       }),
     ).toBe(true);
+    expect(
+      shouldStartAutoScroll({
+        enabled: true,
+        restored: true,
+        visible: true,
+        overlayOpen: false,
+        cancelled: false,
+        userInteracting: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldStartAutoScroll({
+        enabled: true,
+        restored: true,
+        visible: true,
+        overlayOpen: false,
+        cancelled: false,
+        hasOverflow: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("터치·제스처 잠금 중에는 auto-scroll frame을 쓰지 않는다", () => {
+    expect(
+      shouldWriteAutoScrollFrame({
+        running: true,
+        userInteracting: false,
+        gestureLock: false,
+        restoring: false,
+        visible: true,
+        overlayOpen: false,
+        reachedEnd: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldWriteAutoScrollFrame({
+        running: true,
+        userInteracting: true,
+        gestureLock: false,
+        restoring: false,
+        visible: true,
+        overlayOpen: false,
+        reachedEnd: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldWriteAutoScrollFrame({
+        running: true,
+        userInteracting: false,
+        gestureLock: true,
+        restoring: false,
+        visible: true,
+        overlayOpen: false,
+        reachedEnd: false,
+      }),
+    ).toBe(false);
+    expect(isUserScrollGestureLockActive(true, 0, 500)).toBe(true);
+    expect(isUserScrollGestureLockActive(true, 0, 1200)).toBe(false);
+    expect(isUserScrollGestureLockActive(false, 0, 100)).toBe(false);
+  });
+
+  it("주소창 높이 변화는 회전으로 보지 않고 가로·세로 전환만 회전으로 본다", () => {
+    expect(didViewportOrientationFlip(390, 844, 390, 700)).toBe(false);
+    expect(didViewportOrientationFlip(390, 844, 844, 390)).toBe(true);
+    expect(didViewportOrientationFlip(844, 390, 390, 844)).toBe(true);
   });
 });

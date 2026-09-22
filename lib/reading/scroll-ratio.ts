@@ -1,8 +1,10 @@
+import { getReaderScrollMax, getReaderScrollY, setReaderScrollY } from "@/lib/reading/scroll-owner";
+
 export function getScrollRatio(scroller: HTMLElement | Window = window): number {
   if (scroller instanceof Window) {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const max = getReaderScrollMax();
     if (max <= 0) return 0;
-    return clampRatio(window.scrollY / max);
+    return clampRatio(getReaderScrollY() / max);
   }
   const max = scroller.scrollHeight - scroller.clientHeight;
   if (max <= 0) return 0;
@@ -12,8 +14,7 @@ export function getScrollRatio(scroller: HTMLElement | Window = window): number 
 export function restoreScrollRatio(ratio: number, scroller: HTMLElement | Window = window) {
   const safeRatio = clampRatio(ratio);
   if (scroller instanceof Window) {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    window.scrollTo({ top: max * safeRatio, behavior: "instant" });
+    setReaderScrollY(getReaderScrollMax() * safeRatio);
     return;
   }
   const max = scroller.scrollHeight - scroller.clientHeight;

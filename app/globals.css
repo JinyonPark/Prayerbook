@@ -105,6 +105,16 @@ body::before {
 
 html[data-reader="true"] {
   --safe-top: 0px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+html[data-reader="true"] body {
+  overflow: visible;
+  min-height: 0;
 }
 
 html[data-reader="true"] body::before {

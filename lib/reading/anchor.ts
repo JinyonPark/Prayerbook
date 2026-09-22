@@ -1,3 +1,5 @@
+import { getReaderScrollY, setReaderScrollY } from "@/lib/reading/scroll-owner";
+
 export type ReadingAnchor = {
   last_prayer_item_id: string | null;
   scroll_ratio: number;
@@ -58,8 +60,8 @@ export function restoreReadingAnchor(
     document.getElementById(anchorKey);
   if (!target) return false;
   const offset = typeof anchorOffset === "number" && Number.isFinite(anchorOffset) ? anchorOffset : 0;
-  const top = window.scrollY + target.getBoundingClientRect().top - offset;
-  window.scrollTo({ top: Math.max(0, top), behavior: "instant" });
+  const top = getReaderScrollY() + target.getBoundingClientRect().top - offset;
+  setReaderScrollY(Math.max(0, top));
   return true;
 }
 

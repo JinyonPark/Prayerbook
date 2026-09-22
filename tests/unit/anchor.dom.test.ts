@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { captureReadingAnchor, restoreReadingAnchor } from "@/lib/reading/anchor";
 
 function node(id: string, top: number): HTMLElement {
@@ -40,10 +40,9 @@ describe("읽기 위치 복원", () => {
     const article = document.createElement("article");
     const target = node("a2", 40);
     article.append(target);
-    const scrollTo = vi.fn();
-    window.scrollTo = scrollTo as typeof window.scrollTo;
-    Object.defineProperty(window, "scrollY", { configurable: true, value: 200 });
+    const root = document.documentElement;
+    Object.defineProperty(root, "scrollTop", { configurable: true, writable: true, value: 200 });
     expect(restoreReadingAnchor(article, "a2", 10)).toBe(true);
-    expect(scrollTo).toHaveBeenCalled();
+    expect(root.scrollTop).toBe(230);
   });
 });

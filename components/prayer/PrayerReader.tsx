@@ -17,6 +17,8 @@ import { applyPersonalization, applyPrayerInputValues, intercessionFor, namesFor
 import type { PrayerItemRecord } from "@/lib/prayers/markdown";
 import { AUTO_SCROLL_PX_PER_SECOND, type PrayerInputValues } from "@/lib/prayers/inputs";
 import { captureReadingAnchor, readingPersistEquals, restoreReadingAnchor } from "@/lib/reading/anchor";
+import { debugReaderScroll } from "@/lib/reading/scroll-debug";
+import { getReaderScrollMetrics, getReaderScrollY, readerHasScrollRoom, setReaderScrollY } from "@/lib/reading/scroll-owner";
 import { getScrollRatio, restoreScrollRatio } from "@/lib/reading/scroll-ratio";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { completePrayerRequest } from "@/lib/progress/complete-request";
@@ -34,10 +36,13 @@ import {
   remainingAutoScrollDelay,
   shouldIgnoreAutoScrollCancel,
   isManualScrollKey,
+  isUserScrollGestureLockActive,
   nextAutoScrollPosition,
   nextReaderChromeVisible,
   chromeVisibleFromFingerMove,
   shouldStartAutoScroll,
+  shouldWriteAutoScrollFrame,
+  didViewportOrientationFlip,
 } from "@/lib/prayers/auto-scroll";
 
 type Props = {
@@ -91,6 +96,10 @@ export function PrayerReader({ prayer, prayers }: Props) {
   const autoCancelRef = useRef(false);
   const autoTimerRef = useRef(0);
   const autoRunningRef = useRef(false);
+  const userInteractingRef = useRef(false);
+  const userGestureLockRef = useRef(false);
+  const lastUserInputAtRef = useRef(0);
+  const autoRafRef = useRef(0);
   const articleWrapRef = useRef<HTMLDivElement>(null);
   const nameRows = namesFor(personalizations, prayer.slug);
   const intercession = intercessionFor(personalizations, prayer.slug);
@@ -171,7 +180,9 @@ export function PrayerReader({ prayer, prayers }: Props) {
       };
       if (!readingPersistEquals(lastReadingRef.current, payload)) {
         lastReadingRef.current = payload;
-        if (!autoRunningRef.current) setReading(payload);
+        if (!autoRunningRef.current && !userInteractingRef.current && !userGestureLockRef.current) {
+          setReading(payload);
+        }
       }
       if (!hasPublicEnv() || autoRunningRef.current) return;
       const supabase = createBrowserSupabaseClient();
@@ -247,6 +258,11 @@ export function PrayerReader({ prayer, prayers }: Props) {
   useEffect(() => {
     restored.current = false;
     autoCancelRef.current = false;
+    userInteractingRef.current = false;
+    userGestureLockRef.current = false;
+    lastUserInputAtRef.current = 0;
+    window.cancelAnimationFrame(autoRafRef.current);
+    autoRafRef.current = 0;
     autoEnteredAtRef.current = Date.now();
     completeEventId.current = null;
     setReachedEnd(false);
@@ -269,8 +285,9 @@ export function PrayerReader({ prayer, prayers }: Props) {
 
   const restorePosition = useCallback(() => {
     if (prefs.autoScrollEnabled) {
-      window.scrollTo(0, 0);
+      setReaderScrollY(0);
       restored.current = true;
+      debugReaderScroll("restore-top", { reason: "auto-scroll-enabled" });
       return;
     }
     if (reading?.last_prayer_item_id !== prayer.id) {
@@ -291,18 +308,21 @@ export function PrayerReader({ prayer, prayers }: Props) {
     if (restored.current) return;
     const id = window.requestAnimationFrame(() => {
       if (prefs.autoScrollEnabled) {
-        window.scrollTo(0, 0);
+        setReaderScrollY(0);
         restored.current = true;
+        debugReaderScroll("restore-complete", { mode: "auto-top", y: getReaderScrollY() });
         void persistReadingRef.current(true);
         return;
       }
       if (reading?.last_prayer_item_id === prayer.id) {
         restorePosition();
+        debugReaderScroll("restore-complete", { mode: "saved", y: getReaderScrollY() });
         void persistReadingRef.current(true);
         return;
       }
-      window.scrollTo(0, 0);
+      setReaderScrollY(0);
       restored.current = true;
+      debugReaderScroll("restore-complete", { mode: "new-prayer", y: 0 });
       void persistReadingRef.current(true);
     });
     return () => window.cancelAnimationFrame(id);
@@ -310,22 +330,41 @@ export function PrayerReader({ prayer, prayers }: Props) {
 
   useEffect(() => {
     let frame = 0;
-    function onViewportChange() {
-      if (restoring.current || autoRunningRef.current) return;
+    let previousWidth = window.innerWidth;
+    let previousHeight = window.innerHeight;
+
+    function restoreAfterOrientation() {
+      if (restoring.current) return;
+      restoring.current = true;
       window.cancelAnimationFrame(frame);
       const article = articleWrapRef.current?.querySelector(".reader-article") as HTMLElement | null;
       const snapshot = captureReadingAnchor(article);
+      const ratio = getScrollRatio();
       frame = window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
-          restoreReadingAnchor(article, snapshot.anchorKey, snapshot.anchorOffset);
+          const restoredByAnchor = restoreReadingAnchor(article, snapshot.anchorKey, snapshot.anchorOffset);
+          if (!restoredByAnchor) restoreScrollRatio(ratio);
+          restoring.current = false;
+          debugReaderScroll("orientation-restore", { y: getReaderScrollY() });
         });
       });
     }
-    window.visualViewport?.addEventListener("resize", onViewportChange);
-    window.addEventListener("orientationchange", onViewportChange);
+
+    function onViewportResize() {
+      const nextWidth = window.innerWidth;
+      const nextHeight = window.innerHeight;
+      const flipped = didViewportOrientationFlip(previousWidth, previousHeight, nextWidth, nextHeight);
+      previousWidth = nextWidth;
+      previousHeight = nextHeight;
+      if (!flipped) return;
+      restoreAfterOrientation();
+    }
+
+    window.addEventListener("orientationchange", restoreAfterOrientation);
+    window.addEventListener("resize", onViewportResize);
     return () => {
-      window.visualViewport?.removeEventListener("resize", onViewportChange);
-      window.removeEventListener("orientationchange", onViewportChange);
+      window.removeEventListener("orientationchange", restoreAfterOrientation);
+      window.removeEventListener("resize", onViewportResize);
       window.cancelAnimationFrame(frame);
     };
   }, [prayer.id]);
@@ -335,6 +374,7 @@ export function PrayerReader({ prayer, prayers }: Props) {
       void persistReadingRef.current();
     }
     function onScroll() {
+      if (userInteractingRef.current || userGestureLockRef.current) return;
       const now = Date.now();
       if (now - lastSaved.current < 1500) return;
       lastSaved.current = now;
@@ -352,8 +392,8 @@ export function PrayerReader({ prayer, prayers }: Props) {
   }, [prayer.id]);
 
   useEffect(() => {
-    lastChromeYRef.current = window.scrollY;
-    chromeVisibleRef.current = window.scrollY <= 12;
+    lastChromeYRef.current = getReaderScrollY();
+    chromeVisibleRef.current = getReaderScrollY() <= 12;
     setChromeVisible(chromeVisibleRef.current);
 
     function applyChrome(next: boolean) {
@@ -362,27 +402,62 @@ export function PrayerReader({ prayer, prayers }: Props) {
       setChromeVisible(next);
     }
 
+    function beginUserGesture() {
+      userGestureLockRef.current = true;
+      userInteractingRef.current = true;
+      lastUserInputAtRef.current = Date.now();
+      debugReaderScroll("gesture-start", { y: getReaderScrollY(), autoRunning: autoRunningRef.current });
+    }
+
+    function noteUserGesture() {
+      if (!userGestureLockRef.current) userGestureLockRef.current = true;
+      lastUserInputAtRef.current = Date.now();
+    }
+
+    function endUserFinger() {
+      userInteractingRef.current = false;
+      lastUserInputAtRef.current = Date.now();
+      debugReaderScroll("gesture-end", { y: getReaderScrollY(), autoRunning: autoRunningRef.current });
+    }
+
     function onTouchStart(event: TouchEvent) {
       touchingChromeRef.current = true;
       lastTouchYRef.current = event.touches[0]?.clientY ?? 0;
+      beginUserGesture();
     }
     function onTouchMove(event: TouchEvent) {
       const y = event.touches[0]?.clientY ?? lastTouchYRef.current;
       const fingerDelta = y - lastTouchYRef.current;
       lastTouchYRef.current = y;
+      noteUserGesture();
       applyChrome(chromeVisibleFromFingerMove(fingerDelta, chromeVisibleRef.current));
     }
     function onTouchEnd() {
       touchingChromeRef.current = false;
+      endUserFinger();
+    }
+    function onPointerDown(event: PointerEvent) {
+      if (event.pointerType === "touch" || event.pointerType === "pen") beginUserGesture();
+    }
+    function onPointerUp(event: PointerEvent) {
+      if (event.pointerType === "touch" || event.pointerType === "pen") endUserFinger();
     }
     function onWheel(event: WheelEvent) {
+      beginUserGesture();
+      userInteractingRef.current = false;
       if (event.deltaY < -4) applyChrome(true);
       else if (event.deltaY > 4) applyChrome(false);
     }
+    function onKey(event: KeyboardEvent) {
+      if (!isManualScrollKey(event.key)) return;
+      beginUserGesture();
+      userInteractingRef.current = false;
+    }
     function onChromeScroll() {
-      const y = window.scrollY || document.documentElement.scrollTop || 0;
+      const y = getReaderScrollY();
       const deltaY = y - lastChromeYRef.current;
       lastChromeYRef.current = y;
+      if (userGestureLockRef.current) lastUserInputAtRef.current = Date.now();
       if (autoRunningRef.current) return;
       if (touchingChromeRef.current) return;
       applyChrome(
@@ -398,14 +473,22 @@ export function PrayerReader({ prayer, prayers }: Props) {
     window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
     window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    window.addEventListener("pointerup", onPointerUp, { passive: true });
+    window.addEventListener("pointercancel", onPointerUp, { passive: true });
     window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("keydown", onKey);
     window.addEventListener("scroll", onChromeScroll, { passive: true });
     return () => {
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onTouchEnd);
       window.removeEventListener("touchcancel", onTouchEnd);
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
       window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKey);
       window.removeEventListener("scroll", onChromeScroll);
     };
   }, [prayer.id]);
@@ -460,10 +543,16 @@ export function PrayerReader({ prayer, prayers }: Props) {
             visible: document.visibilityState === "visible",
             overlayOpen: overlayOpenRef.current,
             cancelled: autoCancelRef.current,
+            hasOverflow: readerHasScrollRoom(),
+            userInteracting: userInteractingRef.current || userGestureLockRef.current,
           })
         ) {
+          if (!readerHasScrollRoom() && Date.now() - autoEnteredAtRef.current < 2500) {
+            autoTimerRef.current = window.setTimeout(arm, 50);
+          }
           return;
         }
+        debugReaderScroll("auto-start", getReaderScrollMetrics());
         setAutoRunning(true);
       }, remainingAutoScrollDelay(autoEnteredAtRef.current, Date.now()));
     }
@@ -473,13 +562,14 @@ export function PrayerReader({ prayer, prayers }: Props) {
 
   useEffect(() => {
     if (autoRunning) return;
-    const startY = window.scrollY;
+    const startY = getReaderScrollY();
     function cancelFromUserScroll() {
       if (restoring.current) return;
       if (shouldIgnoreAutoScrollCancel(autoEnteredAtRef.current, Date.now())) return;
-      if (Math.abs(window.scrollY - startY) < 40) return;
+      if (Math.abs(getReaderScrollY() - startY) < 40) return;
       autoCancelRef.current = true;
       window.clearTimeout(autoTimerRef.current);
+      debugReaderScroll("auto-cancel", { reason: "user-scroll-before-start" });
     }
     function cancelFromKey(event: KeyboardEvent) {
       if (!isManualScrollKey(event.key)) return;
@@ -505,37 +595,71 @@ export function PrayerReader({ prayer, prayers }: Props) {
 
   useEffect(() => {
     if (!autoRunning || reachedEnd || overlayOpen) return;
-    let frame = 0;
+    window.cancelAnimationFrame(autoRafRef.current);
+    autoRafRef.current = 0;
     let last = 0;
     const speed = AUTO_SCROLL_PX_PER_SECOND[prefs.autoScrollSpeed];
 
     function tick(now: number) {
+      const gestureLock = isUserScrollGestureLockActive(
+        userGestureLockRef.current,
+        lastUserInputAtRef.current,
+        Date.now(),
+      );
+      if (userGestureLockRef.current && !gestureLock) {
+        userGestureLockRef.current = false;
+        debugReaderScroll("auto-resume", getReaderScrollMetrics());
+      }
+      if (document.visibilityState !== "visible") {
+        last = 0;
+        autoRafRef.current = window.requestAnimationFrame(tick);
+        return;
+      }
+      if (
+        !shouldWriteAutoScrollFrame({
+          running: true,
+          userInteracting: userInteractingRef.current,
+          gestureLock,
+          restoring: restoring.current,
+          visible: true,
+          overlayOpen: overlayOpenRef.current,
+          reachedEnd: false,
+        })
+      ) {
+        last = 0;
+        autoRafRef.current = window.requestAnimationFrame(tick);
+        return;
+      }
       if (!last) {
         last = now;
-        frame = window.requestAnimationFrame(tick);
+        autoRafRef.current = window.requestAnimationFrame(tick);
         return;
       }
       const elapsed = Math.min(24, now - last);
       last = now;
-      if (
-        restored.current &&
-        !restoring.current &&
-        document.visibilityState === "visible"
-      ) {
-        const max = document.documentElement.scrollHeight - window.innerHeight;
-        const next = nextAutoScrollPosition(window.scrollY, max, speed, elapsed);
-        window.scrollTo({ top: next.y });
-        if (next.finished && max > 1) {
+      if (restored.current) {
+        const metrics = getReaderScrollMetrics();
+        if (metrics.max <= 1) {
+          autoRafRef.current = window.requestAnimationFrame(tick);
+          return;
+        }
+        const next = nextAutoScrollPosition(metrics.y, metrics.max, speed, elapsed);
+        setReaderScrollY(next.y);
+        if (next.finished) {
+          debugReaderScroll("auto-stop", { reason: "reached-end", ...metrics });
           setReachedEnd(true);
           setAutoRunning(false);
           void persistReadingRef.current();
           return;
         }
       }
-      frame = window.requestAnimationFrame(tick);
+      autoRafRef.current = window.requestAnimationFrame(tick);
     }
-    frame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frame);
+    autoRafRef.current = window.requestAnimationFrame(tick);
+    return () => {
+      window.cancelAnimationFrame(autoRafRef.current);
+      autoRafRef.current = 0;
+    };
   }, [autoRunning, reachedEnd, overlayOpen, prefs.autoScrollSpeed]);
 
   useEffect(() => {

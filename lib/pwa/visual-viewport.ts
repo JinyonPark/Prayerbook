@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { getReaderScrollY, setReaderScrollY } from "@/lib/reading/scroll-owner";
 
 export function readVisualViewport() {
   const viewport = typeof window === "undefined" ? null : window.visualViewport;
@@ -42,7 +43,7 @@ export function useVisualViewport() {
 }
 
 export function lockBodyScroll() {
-  const scrollY = window.scrollY;
+  const scrollY = getReaderScrollY();
   const previous = document.body.style.cssText;
   document.body.style.position = "fixed";
   document.body.style.top = `-${scrollY}px`;
@@ -52,6 +53,6 @@ export function lockBodyScroll() {
   document.body.style.overflow = "hidden";
   return () => {
     document.body.style.cssText = previous;
-    window.scrollTo(0, scrollY);
+    setReaderScrollY(scrollY);
   };
 }
